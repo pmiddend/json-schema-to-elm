@@ -1,0 +1,48 @@
+{
+  "title": "TestClass",
+  "type": "object",
+  "properties": {
+    "myint": {
+      "title": "Myint",
+      "type": "integer"
+    },
+    "mystr": {
+      "title": "Mystr",
+      "type": "string"
+    },
+    "myenum": {
+      "$ref": "#/definitions/MyEnum"
+    },
+    "sub_member": {
+      "$ref": "#/definitions/TestClass2"
+    }
+  },
+  "required": [
+    "myint",
+    "mystr",
+    "myenum",
+    "sub_member"
+  ],
+  "definitions": {
+    "MyEnum": {
+      "title": "MyEnum",
+      "description": "An enumeration.",
+      "enum": [
+        "member1"
+      ]
+    },
+    "TestClass2": {
+      "title": "TestClass2",
+      "type": "object",
+      "properties": {
+        "myfloat": {
+          "title": "Myfloat",
+          "type": "number"
+        }
+      },
+      "required": [
+        "myfloat"
+      ]
+    }
+  }
+}

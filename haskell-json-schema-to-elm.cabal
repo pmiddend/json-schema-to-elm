@@ -22,8 +22,14 @@ common warnings
 executable haskell-json-schema-to-elm
     import:           warnings
     main-is:          Main.hs
-    -- other-modules:
+    other-modules:    JsonSchema
     -- other-extensions:
     build-depends:    base
+                    , elminator
+                    , aeson
+                    , containers
+                    , text
+                    , bytestring
+                    , data-fix
     hs-source-dirs:   app
     default-language: Haskell2010
