@@ -6,7 +6,7 @@
 module JsonSchema where
 
 import Control.Applicative (pure)
-import Control.Monad (fail)
+import Control.Monad (fail, foldM)
 import Data.Aeson (FromJSON (parseJSON), withObject, (.:), (.:?))
 import Data.Either (Either (Left, Right))
 import Data.Fix (Fix, wrapFix)
@@ -23,10 +23,12 @@ import Prelude (snd)
 
 data SubschemaTypeF a
   = SubschemaTypeObject {properties :: Map.Map Text a}
+  | SubschemaTypeArray a
   | SubschemaTypeEnum {enumMembers :: [Text]}
   | SubschemaTypeInteger
   | SubschemaTypeString
   | SubschemaTypeNumber
+  | SubschemaTypeBoolean
   deriving (Show, Foldable, Traversable, Functor)
 
 data RefOrSubschema
@@ -63,6 +65,10 @@ instance FromJSON (SubschemaF RefOrSubschema) where
       Just "integer" -> pure SubschemaTypeInteger
       Just "string" -> pure SubschemaTypeString
       Just "number" -> pure SubschemaTypeNumber
+      Just "boolean" -> pure SubschemaTypeBoolean
+      Just "array" -> do
+        items' <- v .: "items"
+        pure (SubschemaTypeArray items')
       Just "object" -> do
         properties' <- v .: "properties"
         subProperties <- traverse parseJSON properties'
@@ -82,6 +88,7 @@ resolveRefs s =
     resolvedDefs = case definitions s of
       Nothing -> Right Map.empty
       Just defs -> traverse (resolveRef Map.empty) defs
+
     resolveRef :: Map.Map Text Subschema -> RefOrSubschema -> Either Text Subschema
     resolveRef _ (RefOrSubschemaSchema x) = resolveRefs x
     resolveRef defs (RefOrSubschemaRef ref) =

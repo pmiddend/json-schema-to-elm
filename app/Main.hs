@@ -15,7 +15,7 @@ import Data.Semigroup ((<>))
 import Data.String (String)
 import Data.Text (intercalate, pack, replicate)
 import Data.Text.IO (putStrLn)
-import JsonSchema (RefOrSubschema, Subschema, SubschemaF (required, title, type_), SubschemaTypeF (SubschemaTypeEnum, SubschemaTypeInteger, SubschemaTypeNumber, SubschemaTypeObject, SubschemaTypeString, enumMembers), resolveRefs)
+import JsonSchema (RefOrSubschema, Subschema, SubschemaF (required, title, type_), SubschemaTypeF (SubschemaTypeArray, SubschemaTypeBoolean, SubschemaTypeEnum, SubschemaTypeInteger, SubschemaTypeNumber, SubschemaTypeObject, SubschemaTypeString, enumMembers), resolveRefs)
 import System.IO (IO)
 import Prelude (Num ((+)))
 
@@ -30,7 +30,11 @@ printSubschema = printSubschema' 0
     printSubschemaType indent SubschemaTypeInteger = putStrLn (replicate indent " " <> "integer")
     printSubschemaType indent SubschemaTypeString = putStrLn (replicate indent " " <> "string")
     printSubschemaType indent SubschemaTypeNumber = putStrLn (replicate indent " " <> "number")
+    printSubschemaType indent SubschemaTypeBoolean = putStrLn (replicate indent " " <> "boolean")
     printSubschemaType indent (SubschemaTypeEnum {enumMembers = m}) = putStrLn (replicate indent " " <> "enum(" <> intercalate "," m <> ")")
+    printSubschemaType indent (SubschemaTypeArray items) = do
+      putStrLn (replicate indent " " <> "array, subtype:")
+      printSubschema' (indent + 2) items
     printSubschemaType indent (SubschemaTypeObject props) = do
       putStrLn (replicate indent " " <> "object, props:")
       forM_ (Map.toList props) $ \(name, type_') -> do
