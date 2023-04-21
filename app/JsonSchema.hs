@@ -14,9 +14,9 @@ import Data.Foldable (Foldable)
 import Data.Function (($))
 import Data.Functor (Functor, (<$>))
 import qualified Data.Map as Map
-import Data.Maybe (Maybe (Just, Nothing))
+import Data.Maybe (Maybe (Just, Nothing), fromMaybe)
 import Data.Semigroup ((<>))
-import Data.Text (Text, breakOnEnd, isPrefixOf, unpack)
+import Data.Text (Text, breakOnEnd, intercalate, isPrefixOf, unpack)
 import Data.Traversable (Traversable, traverse)
 import Text.Show (Show)
 import Prelude (snd)
@@ -78,22 +78,25 @@ instance FromJSON (SubschemaF RefOrSubschema) where
 
     pure (SubschemaF title' required' resolvedType definitions')
 
+-- From a schema involving "ref" elements, create a schema that has the refs resolved.
+-- We have a helper function resolveRefs', because when resolving references, we want to start the definition search at the root element, and thus have to keep that
 resolveRefs :: SubschemaF RefOrSubschema -> Either Text Subschema
-resolveRefs s =
-  case resolvedDefs of
-    Left e -> Left e
-    Right resolvedDefs' -> wrapFix <$> traverse (resolveRef resolvedDefs') s
+resolveRefs topRoot = resolveRefs' topRoot
   where
-    resolvedDefs :: Either Text (Map.Map Text Subschema)
-    resolvedDefs = case definitions s of
-      Nothing -> Right Map.empty
-      Just defs -> traverse (resolveRef Map.empty) defs
-
-    resolveRef :: Map.Map Text Subschema -> RefOrSubschema -> Either Text Subschema
-    resolveRef _ (RefOrSubschemaSchema x) = resolveRefs x
-    resolveRef defs (RefOrSubschemaRef ref) =
+    -- Little weird wrapFix contraption here, but that's just to make the types work out
+    resolveRefs' root = wrapFix <$> traverse resolveRef root
+    resolveRef :: RefOrSubschema -> Either Text Subschema
+    resolveRef (RefOrSubschemaSchema x) = resolveRefs' x
+    resolveRef (RefOrSubschemaRef ref) =
       if "#/definitions/" `isPrefixOf` ref
-        then case Map.lookup (snd (breakOnEnd "/" ref)) defs of
-          Nothing -> Left ("ref " <> ref <> ": not found in definitions in root")
-          Just v -> Right v
+        then -- Separate the prefix from the suffix (and ignore intermediate paths, so someting like
+        -- #/definitions/foo/bar
+        -- is not supported yet
+
+          let actualDefinition = snd (breakOnEnd "/" ref)
+           in case Map.lookup actualDefinition (fromMaybe Map.empty (definitions topRoot)) of
+                Nothing -> Left ("ref " <> actualDefinition <> ": not found in definitions in root, keys are " <> intercalate "," (Map.keys (fromMaybe Map.empty (definitions topRoot))))
+                Just v -> case resolveRef v of
+                  Left e -> Left ("ref " <> actualDefinition <> ": error resolving: " <> e)
+                  Right resolvedRef -> Right resolvedRef
         else Left ("ref " <> ref <> ": doesn't start with \"#/definitions\"")
