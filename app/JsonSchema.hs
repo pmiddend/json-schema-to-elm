@@ -6,7 +6,7 @@
 module JsonSchema where
 
 import Control.Applicative (pure)
-import Control.Monad (fail, foldM)
+import Control.Monad (fail)
 import Data.Aeson (FromJSON (parseJSON), withObject, (.:), (.:?))
 import Data.Either (Either (Left, Right))
 import Data.Fix (Fix, wrapFix)

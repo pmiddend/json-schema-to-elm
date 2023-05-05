@@ -2,20 +2,22 @@
 
 module Main where
 
-import Control.Monad (forM_)
+import Control.Monad (forM_, mapM_)
 import Data.Aeson (eitherDecodeStrict)
 import Data.ByteString (getContents)
 import Data.Either (Either (Left, Right))
 import Data.Fix (Fix (..))
-import Data.Function (($))
+import Data.Foldable (for_)
+import Data.Function (($), (.))
 import Data.Int (Int)
 import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
 import Data.Semigroup ((<>))
 import Data.String (String)
-import Data.Text (intercalate, pack, replicate)
+import Data.Text (Text, intercalate, pack, replicate)
 import Data.Text.IO (putStrLn)
-import JsonSchema (RefOrSubschema, Subschema, SubschemaF (required, title, type_), SubschemaTypeF (SubschemaTypeArray, SubschemaTypeBoolean, SubschemaTypeEnum, SubschemaTypeInteger, SubschemaTypeNumber, SubschemaTypeObject, SubschemaTypeString, enumMembers), resolveRefs)
+import Elm (ToElmMode (Deep), jsonSchemaToElm)
+import JsonSchema (RefOrSubschema, Subschema, SubschemaF (definitions, required, title, type_), SubschemaTypeF (SubschemaTypeArray, SubschemaTypeBoolean, SubschemaTypeEnum, SubschemaTypeInteger, SubschemaTypeNumber, SubschemaTypeObject, SubschemaTypeString, enumMembers), resolveRefs)
 import System.IO (IO)
 import Prelude (Num ((+)))
 
@@ -48,4 +50,11 @@ main = do
     Left e -> putStrLn (pack e)
     Right v -> case resolveRefs v of
       Left e' -> putStrLn e'
-      Right resolved -> printSubschema resolved
+      Right resolved -> do
+        -- printSubschema resolved
+        -- putStrLn (jsonSchemaToElm Deep resolved)
+        -- case definitions (unFix resolved) of
+        --   Nothing -> pure ()
+        --   Just definitions -> putStrLn (jsonSchemaToElm Deep definitions)
+        for_ (definitions (unFix resolved)) (mapM_ (putStrLn . jsonSchemaToElm Deep))
+        putStrLn (jsonSchemaToElm Deep resolved)

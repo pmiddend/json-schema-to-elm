@@ -22,12 +22,12 @@ common warnings
 executable haskell-json-schema-to-elm
     import:           warnings
     main-is:          Main.hs
-    other-modules:    JsonSchema
+    other-modules:    JsonSchema, Elm
     -- other-extensions:
     build-depends:    base
-                    , elminator
                     , aeson
                     , containers
+                    , casing
                     , text
                     , bytestring
                     , data-fix
