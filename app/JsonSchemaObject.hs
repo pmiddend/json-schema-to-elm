@@ -8,10 +8,12 @@ import Control.Monad (foldM)
 import Data.Aeson (FromJSON)
 import Data.Bool (not)
 import Data.Either (Either (Left, Right))
+import Data.Foldable (Foldable)
 import Data.Functor ((<$>))
 import qualified Data.Map as Map
 import Data.Maybe (Maybe (Just, Nothing), fromMaybe)
 import Data.Monoid (Monoid (..))
+import Data.Ord (Ord)
 import Data.Semigroup ((<>))
 import Data.Text (Text, drop, isPrefixOf, length, unpack)
 import GHC.Generics (Generic)
@@ -39,6 +41,7 @@ instance FromJSON JsonSchemaObject
 expectedRefPrefix :: Text
 expectedRefPrefix = "#/definitions/"
 
+resolveMap :: (Foldable t, Ord k) => Ref.JsonSchemaObjectRef -> t (k, Ref.JsonSchemaObjectRef) -> Either Text (Map.Map k JsonSchemaObject)
 resolveMap root =
   foldM
     (\prevMap (newKey, newElement) -> (\resolvedEl -> Map.insert newKey resolvedEl prevMap) <$> resolveSingleDefinition (fromMaybe mempty (Ref.definitions root)) newElement)
@@ -54,19 +57,12 @@ resolveSingleDefinition refdefs root =
           Nothing -> Left ("looking up #/definitions/" <> ref' <> ": not found")
           Just result -> resolveSingleDefinition refdefs result
     Nothing -> do
-      defs <-
-        foldM
-          (\prevMap (newKey, newElement) -> (\resolvedEl -> Map.insert newKey resolvedEl prevMap) <$> resolveSingleDefinition (fromMaybe mempty (Ref.definitions root)) newElement)
-          mempty
-          (Map.toList (fromMaybe mempty (Ref.definitions root)))
+      defs <- resolveMap root (Map.toList (fromMaybe mempty (Ref.definitions root)))
       props <- case Ref.properties root of
         Nothing -> Right Nothing
         Just props' ->
-          Just
-            <$> foldM
-              (\prevMap (newKey, newElement) -> (\resolvedEl -> Map.insert newKey resolvedEl prevMap) <$> resolveSingleDefinition (fromMaybe mempty (Ref.definitions root)) newElement)
-              mempty
-              (Map.toList props')
+          Just <$> resolveMap root (Map.toList props')
+
       anyOfs <- case Ref.anyOf root of
         Nothing -> Right Nothing
         Just anyOfs' ->
