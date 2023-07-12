@@ -35,6 +35,7 @@
           buildInputs = with pkgs; [
             haskellPackages.haskell-language-server # you must build it with your ghc to work
             ghcid
+            haskellPackages.ormolu
             cabal-install
           ];
           inputsFrom = map (__getAttr "env") (__attrValues self.packages.${system});

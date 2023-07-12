@@ -18,12 +18,14 @@ import Data.Maybe (Maybe (Just, Nothing), fromMaybe)
 import Data.Semigroup ((<>))
 import Data.Text (Text, breakOnEnd, intercalate, isPrefixOf, unpack)
 import Data.Traversable (Traversable, traverse)
+import Debug.Trace (traceShowId)
 import Text.Show (Show)
 import Prelude (snd)
 
 data SubschemaTypeF a
   = SubschemaTypeObject {properties :: Map.Map Text a}
   | SubschemaTypeArray a
+  | SubschemaTypeUnion [a]
   | SubschemaTypeEnum {enumMembers :: [Text]}
   | SubschemaTypeInteger
   | SubschemaTypeString
@@ -37,10 +39,10 @@ data RefOrSubschema
   deriving (Show)
 
 data SubschemaF a = SubschemaF
-  { title :: Text,
+  { title :: Maybe Text,
     required :: Maybe [Text],
-    type_ :: SubschemaTypeF a,
-    definitions :: Maybe (Map.Map Text a)
+    definitions :: Maybe (Map.Map Text a),
+    type_ :: SubschemaTypeF a
   }
   deriving (Show, Foldable, Functor, Traversable)
 
@@ -51,32 +53,36 @@ instance FromJSON RefOrSubschema where
     where
       processor v = do
         ref <- v .:? "$ref"
-        case ref of
+        case traceShowId ref of
           Nothing -> RefOrSubschemaSchema <$> parseJSON originalValue
           Just ref' -> pure (RefOrSubschemaRef ref')
 
 instance FromJSON (SubschemaF RefOrSubschema) where
   parseJSON = withObject "Subschema" $ \v -> do
-    title' <- v .: "title"
+    title' <- v .:? "title"
     type' :: Maybe Text <- v .:? "type"
     required' <- v .:? "required"
     definitions' <- v .:? "definitions"
-    resolvedType <- case type' of
-      Just "integer" -> pure SubschemaTypeInteger
-      Just "string" -> pure SubschemaTypeString
-      Just "number" -> pure SubschemaTypeNumber
-      Just "boolean" -> pure SubschemaTypeBoolean
-      Just "array" -> do
-        items' <- v .: "items"
-        pure (SubschemaTypeArray items')
-      Just "object" -> do
-        properties' <- v .: "properties"
-        subProperties <- traverse parseJSON properties'
-        pure (SubschemaTypeObject subProperties)
-      Just unknownType -> fail ("unknown schema type \"" <> unpack unknownType <> "\"")
-      Nothing -> SubschemaTypeEnum <$> (v .: "enum")
+    anyOf :: Maybe [RefOrSubschema] <- v .:? "anyOf"
+    case traceShowId anyOf of
+      Just unionTypes -> pure (SubschemaF (traceShowId title') required' definitions' (SubschemaTypeUnion unionTypes))
+      Nothing -> do
+        resolvedType <- case type' of
+          Just "integer" -> pure SubschemaTypeInteger
+          Just "string" -> pure SubschemaTypeString
+          Just "number" -> pure SubschemaTypeNumber
+          Just "boolean" -> pure SubschemaTypeBoolean
+          Just "array" -> do
+            items' <- v .: "items"
+            pure (SubschemaTypeArray items')
+          Just "object" -> do
+            properties' <- v .: "properties"
+            subProperties <- traverse parseJSON (traceShowId properties')
+            pure (SubschemaTypeObject subProperties)
+          Just unknownType -> fail ("unknown schema type \"" <> unpack unknownType <> "\"")
+          Nothing -> SubschemaTypeEnum <$> (v .: "enum")
 
-    pure (SubschemaF title' required' resolvedType definitions')
+        pure (SubschemaF title' required' definitions' resolvedType)
 
 -- From a schema involving "ref" elements, create a schema that has the refs resolved.
 -- We have a helper function resolveRefs', because when resolving references, we want to start the definition search at the root element, and thus have to keep that

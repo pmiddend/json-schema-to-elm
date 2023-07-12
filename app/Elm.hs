@@ -34,6 +34,7 @@ jsonSchemaToElm toElmMode (Fix s) = case type_ s of
             members = intercalate ", " (makeMember <$> Map.toList props)
          in "type alias " <> title s <> "{ " <> members <> " }"
   SubschemaTypeArray a -> "List " <> jsonSchemaToElm Flat a
+  SubschemaType a -> "List " <> jsonSchemaToElm Flat a
   SubschemaTypeEnum {enumMembers = members} -> case toElmMode of
     Flat -> title s
     Deep -> "type " <> title s <> " = " <> intercalate " | " (caseConvert <$> members)
