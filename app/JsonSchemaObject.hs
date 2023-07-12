@@ -3,13 +3,22 @@
 
 module JsonSchemaObject where
 
+import Control.Applicative (Applicative (..))
 import Control.Monad (foldM)
 import Data.Aeson (FromJSON)
+import Data.Bool (not)
+import Data.Either (Either (Left, Right))
+import Data.Functor ((<$>))
 import qualified Data.Map as Map
-import Data.Text (Text, unpack)
+import Data.Maybe (Maybe (Just, Nothing), fromMaybe)
+import Data.Monoid (Monoid (..))
+import Data.Semigroup ((<>))
+import Data.Text (Text, drop, isPrefixOf, length, unpack)
 import GHC.Generics (Generic)
 import qualified JsonSchemaObjectRef as Ref
 import JsonSchemaTypeEnum
+import Text.Show (Show)
+import Prelude ()
 
 type ObjectMap = Map.Map Text JsonSchemaObject
 
@@ -27,58 +36,56 @@ data JsonSchemaObject = JsonSchemaObject
 
 instance FromJSON JsonSchemaObject
 
-fromRef :: ObjectMap -> Ref.JsonSchemaObjectRef -> Either Text JsonSchemaObject
-fromRef previousDefinitions root =
-  let resolveObjectRef :: ObjectMap -> Ref.JsonSchemaObjectRef -> Either Text JsonSchemaObject
-      resolveObjectRef defs v = case Ref.definitions v of
-        Just _ -> Left "element has sub-definitions, that's not supported"
-        Nothing ->
-          case Ref.ref v of
-            Just ref ->
-              case Map.lookup ("#/definitions/" <> ref) defs of
-                Nothing -> Left ("element has ref to " <> ref <> " which we haven't found")
-                Just resolvedRef -> Right resolvedRef
-            Nothing ->
-              fromRef (previousDefinitions `Map.union` defs) v
+expectedRefPrefix :: Text
+expectedRefPrefix = "#/definitions/"
 
-      resolveDefinition :: ObjectMap -> (Text, Ref.JsonSchemaObjectRef) -> Either Text ObjectMap
-      resolveDefinition oldDefinitions (k, v) =
-        case resolveObjectRef oldDefinitions v of
-          Left e -> Left e
-          Right v' -> Right (Map.insert k v' oldDefinitions)
+resolveMap root =
+  foldM
+    (\prevMap (newKey, newElement) -> (\resolvedEl -> Map.insert newKey resolvedEl prevMap) <$> resolveSingleDefinition (fromMaybe mempty (Ref.definitions root)) newElement)
+    mempty
 
-      resolvedDefinitions :: Maybe [(Text, Ref.JsonSchemaObjectRef)] -> Either Text ObjectMap
-      resolvedDefinitions d = case d of
-        Nothing -> Right mempty
-        Just defs -> foldM resolveDefinition mempty defs
-
-      resolvedProperties :: ObjectMap -> Maybe Ref.ObjectRefMap -> Either Text (Maybe ObjectMap)
-      resolvedProperties defs props' = case props' of
+resolveSingleDefinition :: Ref.ObjectRefMap -> Ref.JsonSchemaObjectRef -> Either Text JsonSchemaObject
+resolveSingleDefinition refdefs root =
+  case Ref.ref root of
+    Just ref' ->
+      if not (expectedRefPrefix `isPrefixOf` ref')
+        then Left ("reference doesn't start with \"" <> expectedRefPrefix <> "\": " <> ref')
+        else case Map.lookup (drop (length expectedRefPrefix) ref') refdefs of
+          Nothing -> Left ("looking up #/definitions/" <> ref' <> ": not found")
+          Just result -> resolveSingleDefinition refdefs result
+    Nothing -> do
+      defs <-
+        foldM
+          (\prevMap (newKey, newElement) -> (\resolvedEl -> Map.insert newKey resolvedEl prevMap) <$> resolveSingleDefinition (fromMaybe mempty (Ref.definitions root)) newElement)
+          mempty
+          (Map.toList (fromMaybe mempty (Ref.definitions root)))
+      props <- case Ref.properties root of
         Nothing -> Right Nothing
-        Just props ->
-          let resolveWithMap :: ObjectMap -> (Text, Ref.JsonSchemaObjectRef) -> Either Text ObjectMap
-              resolveWithMap prevMap (newKey, newElement) = (\resolvedEl -> Map.insert newKey resolvedEl prevMap) <$> resolveObjectRef defs newElement
-           in Just <$> foldM resolveWithMap mempty (Map.toList props)
-
-      resolvedAnyOfs :: ObjectMap -> Maybe [Ref.JsonSchemaObjectRef] -> Either Text (Maybe [JsonSchemaObject])
-      resolvedAnyOfs defs anyOfs' = case anyOfs' of
+        Just props' ->
+          Just
+            <$> foldM
+              (\prevMap (newKey, newElement) -> (\resolvedEl -> Map.insert newKey resolvedEl prevMap) <$> resolveSingleDefinition (fromMaybe mempty (Ref.definitions root)) newElement)
+              mempty
+              (Map.toList props')
+      anyOfs <- case Ref.anyOf root of
         Nothing -> Right Nothing
-        Just anyOfs ->
-          let resolveWithList :: [JsonSchemaObject] -> Ref.JsonSchemaObjectRef -> Either Text [JsonSchemaObject]
-              resolveWithList prevList newElement = (: prevList) <$> resolveObjectRef defs newElement
-           in Just <$> foldM resolveWithList mempty anyOfs
-   in do
-        defs <- resolvedDefinitions (Ref.definitions root)
-        props <- resolvedProperties defs (Ref.properties root)
-        anyOfs <- resolvedAnyOfs defs (Ref.anyOf root)
-        pure
-          ( JsonSchemaObject
-              (Ref.title root)
-              (Ref.description root)
-              (Ref.type_ root)
-              props
-              (Ref.required root)
-              (Ref.enum root)
-              defs
-              anyOfs
-          )
+        Just anyOfs' ->
+          Just
+            <$> foldM
+              (\prevList newElement -> (: prevList) <$> resolveSingleDefinition (fromMaybe mempty (Ref.definitions root)) newElement)
+              mempty
+              anyOfs'
+      pure
+        ( JsonSchemaObject
+            (Ref.title root)
+            (Ref.description root)
+            (Ref.type_ root)
+            props
+            (Ref.required root)
+            (Ref.enum root)
+            defs
+            anyOfs
+        )
+
+fromRef :: Ref.JsonSchemaObjectRef -> Either Text JsonSchemaObject
+fromRef = resolveSingleDefinition mempty

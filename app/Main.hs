@@ -50,7 +50,7 @@ main = do
     Right v -> do
       putStrLn "decoded:"
       pPrint v
-      case fromRef mempty v of
+      case fromRef v of
         Left e -> putStrLn ("error derefing: " <> e)
         Right v' -> do
           putStrLn "derefed:"

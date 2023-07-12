@@ -25,7 +25,7 @@ data JsonSchemaObjectRef = JsonSchemaObjectRef
     properties :: Maybe ObjectRefMap,
     required :: Maybe [Text],
     enum :: Maybe [Text],
-    definitions :: Maybe [(Text, JsonSchemaObjectRef)],
+    definitions :: Maybe ObjectRefMap,
     anyOf :: Maybe [JsonSchemaObjectRef]
   }
   deriving (Show, Generic)
