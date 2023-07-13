@@ -22,12 +22,13 @@ common warnings
 executable haskell-json-schema-to-elm
     import:           warnings
     main-is:          Main.hs
-    other-modules:    JsonSchemaObjectRef, JsonSchemaTypeEnum, JsonSchemaObject
-    -- other-extensions:
+    other-modules:    JsonSchemaObjectRef, JsonSchemaObject, JsonSchemaTypeEnum, Elm, Elm.Declaration, Elm.Expression, Elm.Import, Elm.Program, Elm.Type, Elm.Classes, Elm.GenError
     build-depends:    base
                     , aeson
                     , containers
                     , casing
+                    , mtl
+                    , pretty
                     , text
                     , bytestring
                     , data-fix

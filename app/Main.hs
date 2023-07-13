@@ -9,16 +9,22 @@ import Data.Either (Either (Left, Right))
 -- import JsonSchema (RefOrSubschema, Subschema, SubschemaF (definitions, required, title, type_), SubschemaTypeF (SubschemaTypeArray, SubschemaTypeBoolean, SubschemaTypeEnum, SubschemaTypeInteger, SubschemaTypeNumber, SubschemaTypeObject, SubschemaTypeString, enumMembers), resolveRefs)
 -- import JsonSchemaNew (SchemaType, SchemaTypeEnum)
 
+import Data.Maybe (Maybe (..))
 import Data.Monoid (Monoid (..))
 import Data.Semigroup ((<>))
 import Data.String (String)
-import Data.Text (pack)
+import Data.Text (Text, pack)
 import Data.Text.IO (putStrLn)
-import JsonSchemaObject (fromRef)
-import JsonSchemaObjectRef
+-- import Elm (ElmType, Union (Union), UnionAlternative (UnionAlternative), unionToElm)
+
+import Elm (Module)
+import JsonSchemaObject (JsonSchemaObject (title, type_), fromRef)
+import JsonSchemaObjectRef (JsonSchemaObjectRef)
+import JsonSchemaTypeEnum (SchemaTypeEnum (..))
 import System.IO (IO)
 import Text.Pretty.Simple (pPrint)
-import Prelude (print)
+import Text.Show (Show (..))
+import Prelude (Maybe (Just), print, undefined)
 
 -- printSubschema :: Subschema -> IO ()
 -- printSubschema = printSubschema' 0
@@ -42,6 +48,16 @@ import Prelude (print)
 --         putStrLn (replicate (indent + 1) " " <> name)
 --         printSubschema' (indent + 2) type_'
 
+schemaToElm :: JsonSchemaObject -> Either Text Module
+schemaToElm j = case type_ j of
+  Just SchemaTypeObject ->
+    case title j of
+      Nothing -> Left "object type has no title, what do I name the type alias then?"
+      Just title' ->
+        let alias = decTypeAlias title'
+         in Right (module_ "MyOutput" Everything [] [])
+  t -> Left ("unknown type " <> pack (show t))
+
 main :: IO ()
 main = do
   stdin <- getContents
@@ -55,6 +71,8 @@ main = do
         Right v' -> do
           putStrLn "derefed:"
           pPrint v'
+
+-- print (unionToElm (Union "TestUnion" [UnionAlternative "A1" ["Foo", "Bar"], UnionAlternative "A2" ["Qux", "Quux"]]))
 
 -- case eitherDecodeStrict stdin :: Either String (SubschemaF RefOrSubschema) of
 --   Left e -> putStrLn (pack e)
