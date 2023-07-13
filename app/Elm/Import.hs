@@ -11,9 +11,10 @@ import Control.Monad (Functor (fmap), Monad (return), mapM)
 import Data.Function (($), (.))
 import Data.Maybe (Maybe (Just, Nothing), fromMaybe)
 import Data.Semigroup ((<>))
-import Data.String (String)
+import Data.Text (Text, unpack)
 import Elm.Classes (Generate (generate))
 import Text.PrettyPrint (empty, hsep, parens, punctuate, text, (<+>))
+import Prelude ()
 
 -- | Possible ways to expose an import
 data ImportType
@@ -22,24 +23,24 @@ data ImportType
 
 -- | Possible ways to expose a sub import
 data ImportItem
-  = Item String
-  | ItemExposing String [String]
-  | ItemEvery String
+  = Item Text
+  | ItemExposing Text [Text]
+  | ItemEvery Text
 
 -- | A full import
-data Import = Import String (Maybe String) (Maybe ImportType)
+data Import = Import Text (Maybe Text) (Maybe ImportType)
 
 instance Generate ImportItem where
   generate item =
     case item of
       Item str ->
-        return . text $ str
+        return . text . unpack $ str
       ItemExposing str [] ->
-        return $ text str <> "()"
+        return $ text (unpack str) <> "()"
       ItemExposing str exposedItems ->
-        return $ text str <> (parens . hsep . punctuate "," . fmap text $ exposedItems)
+        return $ text (unpack str) <> (parens . hsep . punctuate "," . fmap (text . unpack) $ exposedItems)
       ItemEvery str ->
-        return $ text str <> "(..)"
+        return $ text (unpack str) <> "(..)"
 
 instance Generate ImportType where
   generate item =
@@ -54,7 +55,7 @@ instance Generate ImportType where
 
 instance Generate Import where
   generate (Import name as exposing) = do
-    let asDoc = fromMaybe empty $ fmap (\str -> "as" <+> text str) $ as
+    let asDoc = fromMaybe empty $ fmap (\str -> "as" <+> text (unpack str)) $ as
     exposingDoc <-
       case exposing of
         Nothing ->
@@ -62,4 +63,4 @@ instance Generate Import where
         Just e -> do
           docE <- generate e
           return $ "exposing" <+> docE
-    return $ "import" <+> text name <+> asDoc <+> exposingDoc
+    return $ "import" <+> text (unpack name) <+> asDoc <+> exposingDoc

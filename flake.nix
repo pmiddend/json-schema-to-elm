@@ -37,6 +37,8 @@
             ghcid
             haskellPackages.ormolu
             cabal-install
+            haskellPackages.hlint
+            haskellPackages.apply-refact
           ];
           inputsFrom = map (__getAttr "env") (__attrValues self.packages.${system});
         };

@@ -9,13 +9,13 @@ import Data.Eq (Eq)
 import Data.Function (($))
 import Data.Monoid (Monoid (mempty))
 import Data.Semigroup (Semigroup ((<>)))
-import Data.String (String)
+import Data.Text (Text)
 import Text.Show (Show)
 
 -- | The error type
 data GenError
-  = WarningList [String]
-  | Error String
+  = WarningList [Text]
+  | Error Text
   deriving (Eq, Show)
 
 instance Semigroup GenError where

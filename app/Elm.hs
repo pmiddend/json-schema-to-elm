@@ -1,4 +1,3 @@
-{-# LANGUAGE Trustworthy #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# OPTIONS_GHC -Wall #-}
 {-# OPTIONS_HADDOCK prune #-}
@@ -65,7 +64,6 @@ import Data.Eq ((==))
 import Data.Function (($), (.))
 import Data.Int (Int)
 import Data.Maybe (Maybe (Just, Nothing))
-import Data.String (String)
 import Data.Text (Text, pack)
 import Elm.Classes (Generate (generate))
 import qualified Elm.Declaration
@@ -97,7 +95,7 @@ bool :: Bool -> Expr
 bool = Elm.Expression.Bool
 
 -- | A string literal
-string :: String -> Expr
+string :: Text -> Expr
 string = Elm.Expression.Str
 
 -- | An integer literal
@@ -113,7 +111,7 @@ under :: Expr
 under = Elm.Expression.Under
 
 -- | A variable
-var :: String -> Expr
+var :: Text -> Expr
 var = Elm.Expression.Var
 
 -- | Function application
@@ -131,7 +129,7 @@ list = Elm.Expression.List
 --
 -- >>> genStr (op "+" (int 5) (int 6))
 -- "5 + 6"
-op :: String -> Expr -> Expr -> Expr
+op :: Text -> Expr -> Expr -> Expr
 op = Elm.Expression.Op
 
 -- | A let...in block
@@ -177,21 +175,21 @@ parens = Elm.Expression.Parens
 --
 -- >>> genStr (tvar "a")
 -- "a"
-tvar :: String -> Type
+tvar :: Text -> Type
 tvar name = Elm.Type.Params name []
 
 -- | A type with a single paramater
 --
 -- >>> genStr (tparam "Just" (tvar "a"))
 -- "Just a"
-tparam :: String -> Type -> Type
+tparam :: Text -> Type -> Type
 tparam name type_ = Elm.Type.Params name [type_]
 
 -- | A type with multiple paramaters
 --
 -- >>> genStr (tparams "Result" [tvar "String", tvar "Int"])
 -- "Result String Int"
-tparams :: String -> [Type] -> Type
+tparams :: Text -> [Type] -> Type
 tparams = Elm.Type.Params
 
 -- | A zero item tuple type
@@ -219,14 +217,14 @@ tapp = Elm.Type.TApp
 --
 -- >>> genStr (trecord [("a", tvar "Int"), ("b", tvar "String")])
 -- "{ a : Int, b : String }"
-trecord :: [(String, Type)] -> Type
+trecord :: [(Text, Type)] -> Type
 trecord = Elm.Type.TRecord Nothing
 
 -- | A paramaterized record type
 --
 -- >>> genStr (trecordParam "a" [("b", tvar "Int")])
 -- "{ a | b : Int }"
-trecordParam :: String -> [(String, Type)] -> Type
+trecordParam :: Text -> [(Text, Type)] -> Type
 trecordParam = Elm.Type.TRecord . Just
 
 -- Declare variables, functions, types, and type aliases
@@ -234,7 +232,7 @@ trecordParam = Elm.Type.TRecord . Just
 -- | Declare a variable
 decVariable ::
   -- | The variable name
-  String ->
+  Text ->
   -- | The variable's type
   Type ->
   -- | The variable's value
@@ -245,7 +243,7 @@ decVariable name type_ expr = Elm.Declaration.Dec name type_ [] expr
 -- | Declare a function
 decFunction ::
   -- | The function name
-  String ->
+  Text ->
   -- | The function's type
   Type ->
   -- | The fuction's paramaters
@@ -258,35 +256,35 @@ decFunction = Elm.Declaration.Dec
 -- | Declare a type
 decType ::
   -- | The type name
-  String ->
+  Text ->
   -- | The type's type paramaters
-  [String] ->
+  [Text] ->
   -- | The type's constructors
-  [(String, [Type])] ->
+  [(Text, [Type])] ->
   Dec
 decType = Elm.Declaration.DecType
 
 -- | Declare a type alias
 decTypeAlias ::
   -- | The type alias' name
-  String ->
+  Text ->
   -- | The type alias's type paramaters
-  [String] ->
+  [Text] ->
   -- | The type alias's type
   Type ->
   Dec
 decTypeAlias = Elm.Declaration.DecTypeAlias
 
 -- | Import an item
-select :: String -> ImportItem
+select :: Text -> ImportItem
 select = Elm.Import.Item
 
 -- | Import an item and some constructors
-subSelect :: String -> [String] -> ImportItem
+subSelect :: Text -> [Text] -> ImportItem
 subSelect = Elm.Import.ItemExposing
 
 -- | Import an item and all constructors
-subSelectEvery :: String -> ImportItem
+subSelectEvery :: Text -> ImportItem
 subSelectEvery = Elm.Import.ItemEvery
 
 -- | Import all exports of a module
@@ -300,9 +298,9 @@ importEvery = Elm.Import.Everything
 -- | Import a module
 import_ ::
   -- | The name of the module to import
-  String ->
+  Text ->
   -- | A possible alias to import the module as
-  (Maybe String) ->
+  (Maybe Text) ->
   -- | A possible set of items to expose
   (Maybe ImportExpr) ->
   Import

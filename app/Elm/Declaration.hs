@@ -6,19 +6,25 @@
 -- | Top level declerations
 module Elm.Declaration where
 
+import Control.Monad (Functor (fmap), Monad (return), mapM)
+import Data.Function (($), (.))
+import Data.Functor ((<$>))
+import Data.List (head, tail, unzip, zip)
+import Data.Text (Text, unpack)
 import Elm.Classes (Generate (generate))
 import Elm.Expression (Expr)
 import Elm.Type (TypeDec)
 import Text.PrettyPrint (hsep, nest, text, vcat, ($+$), (<+>))
+import Prelude ()
 
 -- | Used to declare functions, variables, and types
 data Dec
   = -- | Declare a function
-    Dec String TypeDec [Expr] Expr
+    Dec Text TypeDec [Expr] Expr
   | -- | Declare a type
-    DecType String [String] [(String, [TypeDec])]
+    DecType Text [Text] [(Text, [TypeDec])]
   | -- | Declare a type alias
-    DecTypeAlias String [String] TypeDec
+    DecTypeAlias Text [Text] TypeDec
 
 instance Generate Dec where
   generate dec =
@@ -27,19 +33,19 @@ instance Generate Dec where
         typeDoc <- generate type_
         paramDocs <- mapM generate params
         valueDoc <- generate value
-        return $ text name <+> ":" <+> typeDoc $+$ text name <+> hsep paramDocs <+> "=" $+$ nest 4 valueDoc
+        return $ text (unpack name) <+> ":" <+> typeDoc $+$ text (unpack name) <+> hsep paramDocs <+> "=" $+$ nest 4 valueDoc
       DecType name params instances -> do
         let (keys, values) = unzip instances
-        let keyDocs = map text keys
+        let keyDocs = text . unpack <$> keys
         valueDocs <- mapM (mapM generate) values
-        let instanceDocs = map (\(key, values') -> key <+> hsep values') $ zip keyDocs valueDocs
-        let paramDocs = map text params
+        let instanceDocs = (\(key, values') -> key <+> hsep values') <$> zip keyDocs valueDocs
+        let paramDocs = text . unpack <$> params
         return $
           "type"
-            <+> text name
+            <+> text (unpack name)
             <+> hsep paramDocs
-            $+$ (nest 4 $ "=" <+> head instanceDocs $+$ (vcat . map ((<+>) "|") . tail $ instanceDocs))
+            $+$ nest 4 ("=" <+> head instanceDocs $+$ (vcat . fmap ((<+>) "|") . tail $ instanceDocs))
       DecTypeAlias name params type_ -> do
         typeDoc <- generate type_
-        let paramDocs = map text params
-        return $ "type alias" <+> text name <+> hsep paramDocs <+> "=" $+$ nest 4 typeDoc
+        let paramDocs = text . unpack <$> params
+        return $ "type alias" <+> text (unpack name) <+> hsep paramDocs <+> "=" $+$ nest 4 typeDoc

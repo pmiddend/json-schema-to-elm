@@ -4,33 +4,40 @@
 -- | Ast for declaring types
 module Elm.Type (TypeDec (..)) where
 
+import Control.Monad (Functor (fmap), Monad (return), mapM)
 import Control.Monad.Writer (tell)
-import Data.List (intersperse)
+import Data.Function (($), (.))
+import Data.Functor ((<$>))
+import Data.List (intersperse, unzip, zip)
+import Data.Maybe (Maybe (Just, Nothing))
+import Data.Semigroup ((<>))
 import Data.String (IsString (fromString))
+import Data.Text (Text, pack, unpack)
 import Elm.Classes (Generate (generate))
 import Elm.GenError (GenError (Error, WarningList))
 import Text.PrettyPrint (hsep, lbrace, parens, punctuate, rbrace, text, (<+>))
+import Prelude ()
 
 -- | Data type to represent types
 data TypeDec
   = -- | A type with type paramaters
-    Params String [TypeDec]
+    Params Text [TypeDec]
   | -- | A function type
     TApp [TypeDec]
   | -- | A tuple type
     TTuple [TypeDec]
   | -- | A record type
-    TRecord (Maybe String) [(String, TypeDec)]
+    TRecord (Maybe Text) [(Text, TypeDec)]
 
 instance IsString TypeDec where
-  fromString x = Params x []
+  fromString x = Params (pack x) []
 
 instance Generate TypeDec where
   generate typeDec =
     case typeDec of
       Params type_ params -> do
         docParams <- mapM vopParam params
-        return $ text type_ <+> hsep docParams
+        return $ text (unpack type_) <+> hsep docParams
       TApp decs -> do
         docDecs <- mapM vopTApp decs
         return . hsep . intersperse "->" $ docDecs
@@ -46,26 +53,26 @@ instance Generate TypeDec where
         tell $ Error "Unable to create a record type with no base and no constraints"
         return ""
       TRecord (Just str) [] -> do
-        tell $ WarningList ["You are creating a record type from " ++ str ++ " with no constraints"]
-        return . text $ str
+        tell $ WarningList ["You are creating a record type from " <> str <> " with no constraints"]
+        return . text . unpack $ str
       TRecord Nothing constraints -> do
         cDoc <- generateTRecordList constraints
         return $ lbrace <+> cDoc <+> rbrace
       TRecord (Just str) constraints -> do
         cDoc <- generateTRecordList constraints
-        return $ lbrace <+> text str <+> text "|" <+> cDoc <+> rbrace
+        return $ lbrace <+> text (unpack str) <+> text "|" <+> cDoc <+> rbrace
     where
       generateTRecordList constraints = do
         let (keys, values) = unzip constraints
-        let docKeys = map text keys
+        let docKeys = text . unpack <$> keys
         docValues <- mapM generate values
         let docList = zip docKeys docValues
-        return . hsep . punctuate "," . map (\(a, b) -> a <+> ":" <+> b) $ docList
+        return . hsep . punctuate "," . fmap (\(a, b) -> a <+> ":" <+> b) $ docList
 
       vopParam type_ =
         case type_ of
           Params str [] ->
-            return . text $ str
+            return . text . unpack $ str
           _ ->
             parens <$> generate type_
 

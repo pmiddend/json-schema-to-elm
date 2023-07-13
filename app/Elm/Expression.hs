@@ -10,15 +10,18 @@ module Elm.Expression
   )
 where
 
-import Control.Monad (Monad (return), mapM, sequence, when)
+import Control.Monad (Monad (return), mapM, when)
 import Control.Monad.Writer (tell)
 import Data.Bool (Bool)
 import Data.Function (($), (.))
+import Data.Functor ((<$>))
 import Data.Int (Int)
-import Data.List (length, map, unzip, zip, (++))
+import Data.List (length, unzip, zipWith)
 import Data.Maybe (Maybe (Just, Nothing))
 import Data.Ord ((>))
-import Data.String (IsString (..), String)
+import Data.Semigroup ((<>))
+import Data.String (IsString (..))
+import Data.Text (Text, pack, unpack)
 import Elm.Classes (Generate (..))
 import Elm.GenError (GenError (..))
 import Text.PrettyPrint (brackets, char, doubleQuotes, float, hsep, int, lbrace, lparen, nest, parens, punctuate, rbrace, rparen, text, vcat, ($+$), (<+>))
@@ -32,7 +35,7 @@ data Expr {-
   = -- | A boolean literal
     Bool Bool
   | -- | A string literal
-    Str String
+    Str Text
   | -- | An integer literal
     Int Int
   | -- | A float literal
@@ -44,14 +47,14 @@ data Expr {-
     -}
 
     -- | A variable
-    Var String
+    Var Text
   | -- | Function application, the tail is applied to the head
     App [Expr]
   | -- | A list of expressions
     List [Expr]
   | -- | Apply an inline operator to two expressions
     Op
-      String
+      Text
       Expr
       Expr
   | -- | A tuple of expressions
@@ -59,7 +62,7 @@ data Expr {-
   | -- | A record, the first paramater is an optional record to update from
     Record
       (Maybe Expr)
-      [(String, Expr)]
+      [(Text, Expr)]
   | {-
       Multi Line
     -}
@@ -81,7 +84,7 @@ data Expr {-
 
 -- | Allows creating variables with overloaded strings
 instance IsString Expr where
-  fromString = Var
+  fromString = Var . pack
 
 instance Generate Expr where
   generate expr =
@@ -90,7 +93,7 @@ instance Generate Expr where
         when (str == "") $
           tell $
             Error "An empty string is not a valid variable name"
-        return $ text str
+        return $ text (unpack str)
       App [] ->
         -- I don't think this has a valid meaning
         do
@@ -115,11 +118,11 @@ instance Generate Expr where
               ]
         docs <- mapM generate items
         return $ lparen <+> (hsep . punctuate "," $ docs) <+> rparen
-      Str str -> return . doubleQuotes . text $ str
+      Str str -> return . doubleQuotes . text . unpack $ str
       Op op expr1 expr2 -> do
         doc1 <- vop expr1
         doc2 <- vop expr2
-        return $ doc1 <+> text op <+> doc2
+        return $ doc1 <+> text (unpack op) <+> doc2
       Case _ [] -> do
         tell $ Error "Unable to create case expression with 0 cases"
         return ""
@@ -141,11 +144,17 @@ instance Generate Expr where
       Int val -> do
         when (val > 9007199254740991) $
           -- I would love for someone, somewhere, to get this warning
+
+          -- I would love for someone, somewhere, to get this warning
+
+          -- I would love for someone, somewhere, to get this warning
+
+          -- I would love for someone, somewhere, to get this warning
           tell $
             WarningList
               [ "The number "
-                  ++ show val
-                  ++ " is larger than the largest safe number in js"
+                  <> pack (show val)
+                  <> " is larger than the largest safe number in js"
               ]
         return . int $ val
       Float val -> do
@@ -153,8 +162,8 @@ instance Generate Expr where
           tell $
             WarningList
               [ "The number "
-                  ++ show val
-                  ++ " is larger that the largest safe number in js"
+                  <> pack (show val)
+                  <> " is larger that the largest safe number in js"
               ]
         return . float $ val
       Under -> return . char $ '_'
@@ -169,13 +178,13 @@ instance Generate Expr where
           tell $
             WarningList
               [ "Trying to update record "
-                  ++ str
-                  ++ " with no changed fields"
+                  <> str
+                  <> " with no changed fields"
               ]
-          return . text $ str
+          return . text . unpack $ str
       Record (Just (Var str)) updates -> do
         list' <- genRecordList updates
-        return $ lbrace <+> text str <+> "|" <+> list' <+> rbrace
+        return $ lbrace <+> text (unpack str) <+> "|" <+> list' <+> rbrace
       Record (Just _) _ ->
         -- This seems to be how it is
         do
@@ -194,24 +203,21 @@ instance Generate Expr where
 
       genRecordList updates = do
         let (keys, values) = unzip updates
-        let docKeys = map text keys
+        let docKeys = text . unpack <$> keys
         docValues <- mapM generate values
-        return . hsep . punctuate "," . map (\(a, b) -> a <+> "=" <+> b) $
-          zip docKeys docValues
+        (return . hsep . punctuate ",") (zipWith (\a b -> a <+> "=" <+> b) docKeys docValues)
       -- Generates the list of declerations in a let expression
       genLetList bindings = do
         let (keys, values) = unzip bindings
         docKeys <- mapM generate keys
         docValues <- mapM generate values
-        return . vcat . map (\(a, b) -> a <+> "=" <+> b) $
-          zip docKeys docValues
+        (return . vcat) (zipWith (\a b -> a <+> "=" <+> b) docKeys docValues)
       -- Generates the list of cases in a case statement
       genCaseList options = do
         let (keys, values) = unzip options
         docKeys <- mapM generate keys
-        docValues <- sequence . map generate $ values
-        return . vcat . punctuate "\n" . map (\(a, b) -> a <+> "->" $+$ nest 4 b) $
-          zip docKeys docValues
+        docValues <- mapM generate values
+        (return . vcat . punctuate "\n") (zipWith (\a b -> a <+> "->" $+$ nest 4 b) docKeys docValues)
       -- takes an expression and wraps it in parens
       -- if required for nesting it in another expression
       vop expr' =
