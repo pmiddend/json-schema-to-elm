@@ -33,5 +33,6 @@ executable haskell-json-schema-to-elm
                     , bytestring
                     , data-fix
                     , pretty-simple
+                    , text-manipulate
     hs-source-dirs:   app
     default-language: Haskell2010

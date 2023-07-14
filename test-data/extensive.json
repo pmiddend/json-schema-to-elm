@@ -1,0 +1,77 @@
+{
+  "title": "TestClass",
+  "type": "object",
+  "properties": {
+    "my_int": {
+      "title": "My Int",
+      "type": "integer"
+    },
+    "my_str": {
+      "title": "My Str",
+      "type": "string"
+    },
+    "my_enum": {
+      "$ref": "#/definitions/MyEnum"
+    },
+    "sub_member": {
+      "$ref": "#/definitions/TestClass2"
+    },
+    "union_member": {
+      "title": "Union Member",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/ChoiceA"
+        },
+        {
+          "type": "integer"
+        }
+      ]
+    }
+  },
+  "required": [
+    "my_int",
+    "my_enum",
+    "sub_member",
+    "union_member"
+  ],
+  "definitions": {
+    "MyEnum": {
+      "title": "MyEnum",
+      "description": "An enumeration.",
+      "enum": [
+        "member1",
+        "member2"
+      ]
+    },
+    "TestClass2": {
+      "title": "TestClass2",
+      "type": "object",
+      "properties": {
+        "my_float": {
+          "title": "My Float",
+          "type": "number"
+        },
+        "en": {
+          "$ref": "#/definitions/MyEnum"
+        }
+      },
+      "required": [
+        "my_float",
+        "en"
+      ]
+    },
+    "ChoiceA": {
+      "title": "ChoiceA",
+      "type": "object",
+      "properties": {
+        "my_choice_float": {
+          "title": "My Choice Float",
+          "type": "number"
+        }
+      },
+      "required": [
+        "my_choice_float"
+      ]
+    }
+  }
+}

@@ -19,7 +19,6 @@
   },
   "required": [
     "myint",
-    "mystr",
     "myenum",
     "sub_member"
   ],
@@ -28,7 +27,8 @@
       "title": "MyEnum",
       "description": "An enumeration.",
       "enum": [
-        "member1"
+          "member1",
+	  "Member2"
       ]
     },
     "TestClass2": {
