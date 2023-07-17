@@ -12,7 +12,7 @@ import Data.Foldable (Foldable (elem, foldr))
 import Data.Function ((.))
 import Data.Functor ((<$>))
 import Data.Int (Int)
-import Data.List (length, take, zipWith)
+import Data.List (length, reverse, take, zipWith)
 import qualified Data.Map as Map
 import Data.Maybe (Maybe (..), fromMaybe)
 import Data.Semigroup ((<>))
@@ -21,14 +21,15 @@ import Data.Text (Text, pack, singleton)
 import Data.Text.IO (putStrLn)
 import Data.Text.Manipulate (toCamel, toPascal)
 import Data.Traversable (Traversable (traverse))
-import Elm (Dec, Expr, Module, Type, app, bool, case_, decFunction, decType, decTypeAlias, importEvery, let_, list, module_, op, render, string, tapp, tparam, tparams, trecord, tvar, var)
+import Elm (Dec, Expr, Module, Type, app, bool, case_, decFunction, decType, decTypeAlias, importEvery, import_, let_, list, module_, op, render, string, tapp, tparam, tparams, trecord, tvar, var)
 import JsonSchemaObject (JsonSchemaObject (anyOf, definitions, enum, properties, required, title, type_), fromRef)
 import JsonSchemaObjectRef (JsonSchemaObjectRef)
 import JsonSchemaTypeEnum (SchemaTypeEnum (..))
+import System.Environment (getArgs)
 import System.IO (IO)
 import Text.Pretty.Simple (pPrint)
 import Text.Show (Show (..))
-import Prelude ()
+import Prelude (Num ((+)))
 
 packShow :: Show a => a -> Text
 packShow = pack . show
@@ -136,7 +137,7 @@ unionDeclaration :: Int -> Dec
 unionDeclaration n =
   decType
     ("Union" <> packShow n)
-    (singleton <$> take n ['a' .. 'z'])
+    (singleton <$> take (n + 1) ['a' .. 'z'])
     (zipWith (\c i -> ("Union" <> packShow n <> "Member" <> packShow i, [tvar (singleton c)])) ['a' .. 'z'] [0 .. n])
 
 schemaToElm :: Text -> JsonSchemaObject -> Either Text Module
@@ -151,7 +152,7 @@ schemaToElm moduleName j = case type_ j of
       ( module_
           moduleName
           importEvery
-          []
+          [import_ "Json.Decode" (Just "Decode") Nothing, import_ "Json.Decode.Pipeline" (Just "DecodePipeline") Nothing]
           (rootDeclaration : constantStringDecoder : rootDecoder : (definitions' <> unions <> definitionsDecoders))
       )
   t -> Left ("unknown type " <> packShow t)
@@ -178,9 +179,9 @@ buildDecoder j = case type_ j of
                 Right v ->
                   Right
                     ( app
-                        [ var "required",
+                        [ var "DecodePipeline.required",
                           string (toCamel propName),
-                          if propName `elem` requiredProps then v else app [var "nullable", v]
+                          if propName `elem` requiredProps then v else app [var "Decode.nullable", v]
                         ]
                     )
            in do
@@ -200,7 +201,7 @@ buildDecoder j = case type_ j of
                           ( app
                               ["Decode.succeed", var finalName]
                           )
-                          decoders
+                          (reverse decoders)
                       )
                   )
   Nothing -> case enum j of
@@ -228,7 +229,7 @@ constantStringDecoder :: Dec
 constantStringDecoder =
   decFunction
     constantStringDecoderName
-    (tapp [tvar "String", tvar "a", tparam "Decoder" "a"])
+    (tapp [tvar "String", tvar "a", tparam "Decode.Decoder" "a"])
     [var "c", var "enumCtor"]
     ( let_
         (app [var "Decode.andThen", var "evaluate", var "Decode.string"])
@@ -243,19 +244,28 @@ constantStringDecoder =
         ]
     )
 
+safeHead :: [a] -> Maybe a
+safeHead l = case l of
+  (x : _) -> Just x
+  _ -> Nothing
+
 main :: IO ()
 main = do
+  args <- getArgs
   stdin <- getContents
   case eitherDecodeStrict stdin :: Either String JsonSchemaObjectRef of
     Left e -> putStrLn ("error decoding JSON: " <> pack e)
     Right v -> do
-      putStrLn "decoded:"
-      pPrint v
+      -- putStrLn "decoded:"
+      -- pPrint v
       case fromRef v of
         Left e -> putStrLn ("error derefing: " <> e)
-        Right v' -> do
-          putStrLn "derefed:"
-          pPrint v'
-          case schemaToElm "MyModule" v' of
-            Left e -> putStrLn ("error elming: " <> e)
-            Right v'' -> putStrLn (render v'')
+        Right v' ->
+          case safeHead args of
+            Nothing -> putStrLn "please give the module name as first parameter"
+            Just moduleName -> do
+              -- putStrLn "derefed:"
+              -- pPrint v'
+              case schemaToElm (pack moduleName) v' of
+                Left e -> putStrLn ("error elming: " <> e)
+                Right v'' -> putStrLn (render v'')
