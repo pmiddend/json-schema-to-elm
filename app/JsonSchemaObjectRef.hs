@@ -24,6 +24,7 @@ data JsonSchemaObjectRef = JsonSchemaObjectRef
     ref :: Maybe Text,
     properties :: Maybe ObjectRefMap,
     required :: Maybe [Text],
+    items :: Maybe JsonSchemaObjectRef,
     enum :: Maybe [Text],
     definitions :: Maybe ObjectRefMap,
     anyOf :: Maybe [JsonSchemaObjectRef]
@@ -39,6 +40,7 @@ instance FromJSON JsonSchemaObjectRef where
       <*> v .:? "$ref"
       <*> v .:? "properties"
       <*> v .:? "required"
+      <*> v .:? "items"
       <*> v .:? "enum"
       <*> v .:? "definitions"
       <*> v .:? "anyOf"

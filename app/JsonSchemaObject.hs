@@ -30,6 +30,7 @@ data JsonSchemaObject = JsonSchemaObject
     type_ :: Maybe SchemaTypeEnum,
     properties :: Maybe ObjectMap,
     required :: Maybe [Text],
+    items :: Maybe JsonSchemaObject,
     enum :: Maybe [Text],
     definitions :: ObjectMap,
     anyOf :: Maybe [JsonSchemaObject]
@@ -69,6 +70,11 @@ resolveSingleDefinition rootDefs root =
         Just props' ->
           Just <$> resolveMap rootDefs (Map.toList props')
 
+      items' <- case Ref.items root of
+        Nothing -> Right Nothing
+        Just items' ->
+          Just <$> resolveSingleDefinition rootDefs items'
+
       -- Same game for the anyOf alternatives
       anyOfs <- case Ref.anyOf root of
         Nothing -> Right Nothing
@@ -85,6 +91,7 @@ resolveSingleDefinition rootDefs root =
             (Ref.type_ root)
             props
             (Ref.required root)
+            items'
             (Ref.enum root)
             defs
             anyOfs
@@ -123,6 +130,11 @@ resolveRootDefinitions rootDefs =
                   (\prevList newElement -> (: prevList) <$> resolveRootDefinition newElement)
                   mempty
                   anyOfs'
+
+          items' <- case Ref.items root of
+            Nothing -> Right Nothing
+            Just items'' -> Just <$> resolveRootDefinition items''
+
           pure
             ( JsonSchemaObject
                 (Ref.title root)
@@ -130,6 +142,7 @@ resolveRootDefinitions rootDefs =
                 (Ref.type_ root)
                 props
                 (Ref.required root)
+                items'
                 (Ref.enum root)
                 mempty
                 anyOfs

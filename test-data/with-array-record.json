@@ -15,24 +15,12 @@
     },
     "sub_member": {
       "$ref": "#/definitions/TestClass2"
-    },
-    "union_member": {
-      "title": "Union Member",
-      "anyOf": [
-        {
-          "$ref": "#/definitions/ChoiceA"
-        },
-        {
-          "type": "integer"
-        }
-      ]
     }
   },
   "required": [
     "my_int",
     "my_enum",
-    "sub_member",
-    "union_member"
+    "sub_member"
   ],
   "definitions": {
     "MyEnum": {
@@ -65,19 +53,6 @@
         "my_float",
         "my_list",
         "en"
-      ]
-    },
-    "ChoiceA": {
-      "title": "ChoiceA",
-      "type": "object",
-      "properties": {
-        "my_choice_float": {
-          "title": "My Choice Float",
-          "type": "number"
-        }
-      },
-      "required": [
-        "my_choice_float"
       ]
     }
   }

@@ -21,15 +21,51 @@ import Data.Text (Text, pack, singleton)
 import Data.Text.IO (putStrLn)
 import Data.Text.Manipulate (toCamel, toPascal)
 import Data.Traversable (Traversable (traverse))
-import Elm (Dec, Expr, Module, Type, app, bool, case_, decFunction, decType, decTypeAlias, importEvery, import_, let_, list, module_, op, render, string, tapp, tparam, tparams, trecord, tvar, var)
-import JsonSchemaObject (JsonSchemaObject (anyOf, definitions, enum, properties, required, title, type_), fromRef)
+import Elm
+  ( Dec,
+    Expr,
+    Module,
+    Type,
+    app,
+    bool,
+    case_,
+    decFunction,
+    decType,
+    decTypeAlias,
+    importEvery,
+    import_,
+    let_,
+    list,
+    module_,
+    op,
+    render,
+    string,
+    tapp,
+    tparam,
+    tparams,
+    trecord,
+    tvar,
+    var,
+  )
+import JsonSchemaObject
+  ( JsonSchemaObject
+      ( anyOf,
+        definitions,
+        enum,
+        items,
+        properties,
+        required,
+        title,
+        type_
+      ),
+    fromRef,
+  )
 import JsonSchemaObjectRef (JsonSchemaObjectRef)
 import JsonSchemaTypeEnum (SchemaTypeEnum (..))
 import System.Environment (getArgs)
 import System.IO (IO)
-import Text.Pretty.Simple (pPrint)
 import Text.Show (Show (..))
-import Prelude (Num ((+)))
+import Prelude (Num ((+), (-)))
 
 packShow :: Show a => a -> Text
 packShow = pack . show
@@ -37,22 +73,19 @@ packShow = pack . show
 buildDecoderName :: Text -> Text
 buildDecoderName v = "decode" <> v
 
-schemaTypeToElmDecoder :: JsonSchemaObject -> Either Text Expr
-schemaTypeToElmDecoder j = case type_ j of
-  Just SchemaTypeInteger -> Right (var "Decode.int")
-  Just SchemaTypeNumber -> Right (var "Decode.float")
-  Just SchemaTypeString -> Right (var "Decode.string")
-  _ -> case title j of
-    Nothing -> Left ("unknown type to name decoder for (no title): " <> packShow j)
-    Just title' -> Right (var (buildDecoderName (toPascal title')))
-
+-- | Given a JSON schema, give the name for the schema (is used when declaring records)
 schemaTypeToElmShallow :: JsonSchemaObject -> Either Text Type
 schemaTypeToElmShallow j = case type_ j of
   Just SchemaTypeInteger -> Right (tvar "Int")
   Just SchemaTypeString -> Right (tvar "String")
   Just SchemaTypeNumber -> Right (tvar "Float")
   Just SchemaTypeBoolean -> Right (tvar "Boolean")
-  Just SchemaTypeArray -> Left "array not supported yet"
+  Just SchemaTypeArray ->
+    case items j of
+      Nothing -> Left ("list without items? " <> packShow j)
+      Just items' -> do
+        subType <- schemaTypeToElmShallow items'
+        Right (tparam "List" subType)
   Just SchemaTypeObject ->
     case title j of
       Nothing -> Left "record without a title"
@@ -65,8 +98,9 @@ schemaTypeToElmShallow j = case type_ j of
           Nothing -> Right (tvar (toPascal title'))
           Just anyOfs -> do
             subElements <- traverse schemaTypeToElmShallow anyOfs
-            pure (tparams ("Union" <> packShow (length anyOfs)) subElements)
+            pure (tparams ("Union" <> packShow (length anyOfs - 1)) subElements)
 
+-- | Give the name for a JSON schema (mostly Pascal cases its title, but also returns something for the built-in types)
 schemaTypeToElmName :: JsonSchemaObject -> Either Text Text
 schemaTypeToElmName j = case type_ j of
   Just SchemaTypeInteger -> Right "Int"
@@ -87,6 +121,7 @@ schemaTypeToElmName j = case type_ j of
           Just _ -> do
             Left "anyOf decoding not supported yet"
 
+-- | Declaration for the actual Elm data type for a JSON schema
 schemaObjectToDeclaration :: JsonSchemaObject -> Either Text Dec
 schemaObjectToDeclaration j = case type_ j of
   Just SchemaTypeObject ->
@@ -140,14 +175,28 @@ unionDeclaration n =
     (singleton <$> take (n + 1) ['a' .. 'z'])
     (zipWith (\c i -> ("Union" <> packShow n <> "Member" <> packShow i, [tvar (singleton c)])) ['a' .. 'z'] [0 .. n])
 
+unionDecoder :: Int -> Dec
+unionDecoder n =
+  let typeLetters = singleton <$> take (n + 1) ['a' .. 'z']
+   in decFunction
+        ("decodeUnion" <> packShow n)
+        ( tapp
+            ( (tparam "Decode.Decoder" . tvar <$> typeLetters)
+                <> [tparam "Decode.Decoder" (tparams ("Union" <> packShow n) (tvar <$> typeLetters))]
+            )
+        )
+        (var <$> typeLetters)
+        (app ["Decode.oneOf", list (zipWith (\typeIndex typeLetter -> app [var "Decode.map", var ("Union" <> packShow n <> "Member" <> packShow typeIndex), var typeLetter]) [0 ..] typeLetters)])
+
+-- | The root function: generate an Elm file from a schema
 schemaToElm :: Text -> JsonSchemaObject -> Either Text Module
 schemaToElm moduleName j = case type_ j of
   Just SchemaTypeObject -> do
     rootDeclaration <- schemaObjectToDeclaration j
     definitions' <- traverse schemaObjectToDeclaration (Map.elems (definitions j))
-    definitionsDecoders <- traverse buildDecoder (Map.elems (definitions j))
-    rootDecoder <- buildDecoder j
-    let unions = unionDeclaration <$> [0 .. 7]
+    definitionsDecoders <- traverse schemaTypeToDecoderDeclaration (Map.elems (definitions j))
+    rootDecoder <- schemaTypeToDecoderDeclaration j
+    let unions = (unionDeclaration <$> [0 .. 7]) <> (unionDecoder <$> [0 .. 7])
     pure
       ( module_
           moduleName
@@ -157,8 +206,31 @@ schemaToElm moduleName j = case type_ j of
       )
   t -> Left ("unknown type " <> packShow t)
 
-buildDecoder :: JsonSchemaObject -> Either Text Dec
-buildDecoder j = case type_ j of
+-- | Given a JSON schema, give an expression in order to decode the schema. The type should match whatever schemaTypeToDecoderDeclaration returns
+schemaTypeToElmDecoderExpression :: JsonSchemaObject -> Either Text Expr
+schemaTypeToElmDecoderExpression j = case type_ j of
+  Just SchemaTypeInteger -> Right (var "Decode.int")
+  Just SchemaTypeNumber -> Right (var "Decode.float")
+  Just SchemaTypeString -> Right (var "Decode.string")
+  Just SchemaTypeArray -> do
+    case items j of
+      Nothing -> Left ("array without items? " <> packShow j)
+      Just items' -> do
+        subDecoder <- schemaTypeToElmDecoderExpression items'
+        pure (app ["Decode.list", subDecoder])
+  _ ->
+    case anyOf j of
+      Just anyOf' -> do
+        anyOfElements <- traverse schemaTypeToElmDecoderExpression anyOf'
+        pure (app (var ("decodeUnion" <> packShow (length anyOf' - 1)) : anyOfElements))
+      Nothing ->
+        case title j of
+          Nothing -> Left ("unknown type to name decoder for (no title): " <> packShow j)
+          Just title' -> Right (var (buildDecoderName (toPascal title')))
+
+-- | Given a schema, create a declaration for a decoder function for this schema
+schemaTypeToDecoderDeclaration :: JsonSchemaObject -> Either Text Dec
+schemaTypeToDecoderDeclaration j = case type_ j of
   Just SchemaTypeObject ->
     case title j of
       Nothing -> Left "no title found, cannot build decoder"
@@ -174,7 +246,7 @@ buildDecoder j = case type_ j of
               fnParams = []
               requiredProps :: [Text]
               requiredProps = fromMaybe [] (required j)
-              makeSingleDecoder propName obj = case schemaTypeToElmDecoder obj of
+              makeSingleDecoder propName obj = case schemaTypeToElmDecoderExpression obj of
                 Left e -> Left e
                 Right v ->
                   Right
