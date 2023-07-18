@@ -5,7 +5,7 @@
 module JsonSchemaObjectRef where
 
 import Control.Applicative ((<*>))
-import Data.Aeson (FromJSON (parseJSON), withObject, (.:?))
+import Data.Aeson (FromJSON (parseJSON), withObject, (.:?), (.:))
 import Data.Functor ((<$>))
 import qualified Data.Map as Map
 import Data.Maybe (Maybe)
@@ -23,6 +23,7 @@ data JsonSchemaObjectRef = JsonSchemaObjectRef
     type_ :: Maybe SchemaTypeEnum,
     ref :: Maybe Text,
     properties :: Maybe ObjectRefMap,
+    additionalProperties :: Maybe JsonSchemaObjectRef,
     required :: Maybe [Text],
     items :: Maybe JsonSchemaObjectRef,
     enum :: Maybe [Text],
@@ -39,6 +40,7 @@ instance FromJSON JsonSchemaObjectRef where
       <*> v .:? "type"
       <*> v .:? "$ref"
       <*> v .:? "properties"
+      <*> v .:? "additionalProperties"
       <*> v .:? "required"
       <*> v .:? "items"
       <*> v .:? "enum"

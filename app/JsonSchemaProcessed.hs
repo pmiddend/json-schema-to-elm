@@ -9,7 +9,7 @@ import Data.Maybe (Maybe (Just, Nothing), fromMaybe)
 import Data.Semigroup ((<>))
 import Data.Text (Text)
 import Data.Traversable (Traversable (traverse))
-import JsonSchemaObject (JsonSchemaObject (anyOf, definitions, enum, items, properties, required, title, type_))
+import JsonSchemaObject (JsonSchemaObject (additionalProperties, anyOf, definitions, enum, items, properties, required, title, type_))
 import JsonSchemaTypeEnum (SchemaTypeEnum (..))
 import Text.Show (Show)
 import Utils (pShowStrict)
@@ -23,6 +23,9 @@ data JsonSchemaProcessed
         objectProperties :: Map.Map Text JsonSchemaProcessed,
         objectDefinitions :: Map.Map Text JsonSchemaProcessed,
         objectRequired :: [Text]
+      }
+  | JsonSchemaProcessedDict
+      { dictProperties :: JsonSchemaProcessed
       }
   | JsonSchemaProcessedUnion {unionTitle :: Text, unionItems :: [JsonSchemaProcessed]}
   | JsonSchemaProcessedInt
@@ -43,14 +46,20 @@ fromObject j = case type_ j of
   Just SchemaTypeBoolean -> case title j of
     Nothing -> Left ("boolean without a title: " <> pShowStrict j)
     Just title' -> pure (JsonSchemaProcessedBoolean title')
-  Just SchemaTypeObject -> case title j of
-    Nothing -> Left ("object without a title: " <> pShowStrict j)
-    Just title' -> case properties j of
-      Nothing -> Left ("object without properties: " <> pShowStrict j)
-      Just properties' -> do
-        props <- traverse fromObject properties'
-        defs <- traverse fromObject (definitions j)
-        pure (JsonSchemaProcessedObject title' props defs (fromMaybe [] (required j)))
+  Just SchemaTypeObject ->
+    case additionalProperties j of
+      Just additionalProps' -> do
+        resolved <- fromObject additionalProps'
+        pure (JsonSchemaProcessedDict resolved)
+      Nothing ->
+        case title j of
+          Nothing -> Left ("object without a title: " <> pShowStrict j)
+          Just title' -> case properties j of
+            Nothing -> Left ("object without properties: " <> pShowStrict j)
+            Just properties' -> do
+              props <- traverse fromObject properties'
+              defs <- traverse fromObject (definitions j)
+              pure (JsonSchemaProcessedObject title' props defs (fromMaybe [] (required j)))
   Just SchemaTypeArray -> case items j of
     Nothing -> Left ("array without items: " <> pShowStrict j)
     Just items' -> do

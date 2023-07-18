@@ -15,7 +15,7 @@ import Data.Functor ((<$>))
 import Data.Int (Int)
 import Data.List (length, reverse, take, zipWith)
 import qualified Data.Map as Map
-import Data.Maybe (Maybe (..), fromMaybe, maybe)
+import Data.Maybe (Maybe (..), maybe)
 import Data.Monoid (Monoid (mempty))
 import Data.Semigroup ((<>))
 import Data.String (String)
@@ -23,7 +23,6 @@ import Data.Text (Text, pack, singleton)
 import Data.Text.IO (putStrLn)
 import Data.Text.Manipulate (toCamel, toPascal)
 import Data.Traversable (Traversable (traverse))
-import Debug.Trace (traceShowId)
 import Elm
   ( Dec,
     Expr,
@@ -36,12 +35,14 @@ import Elm
     decType,
     decTypeAlias,
     importEvery,
+    importSome,
     import_,
     let_,
     list,
     module_,
     op,
     render,
+    select,
     string,
     tapp,
     tparam,
@@ -53,11 +54,10 @@ import Elm
   )
 import JsonSchemaObject
   ( JsonSchemaObject,
-    ObjectMap,
     fromRef,
   )
 import JsonSchemaObjectRef (JsonSchemaObjectRef)
-import JsonSchemaProcessed (JsonSchemaProcessed (JsonSchemaProcessedArray, JsonSchemaProcessedBoolean, JsonSchemaProcessedEnum, JsonSchemaProcessedInt, JsonSchemaProcessedNumber, JsonSchemaProcessedObject, JsonSchemaProcessedString, JsonSchemaProcessedUnion, arrayItems, enumItems, enumTitle, objectDefinitions, objectProperties, objectRequired, objectTitle, unionItems), fromObject)
+import JsonSchemaProcessed (JsonSchemaProcessed (JsonSchemaProcessedArray, JsonSchemaProcessedBoolean, JsonSchemaProcessedDict, JsonSchemaProcessedEnum, JsonSchemaProcessedInt, JsonSchemaProcessedNumber, JsonSchemaProcessedObject, JsonSchemaProcessedString, JsonSchemaProcessedUnion, arrayItems, dictProperties, enumItems, enumTitle, objectDefinitions, objectProperties, objectRequired, objectTitle, unionItems), fromObject)
 import System.Environment (getArgs)
 import System.IO (IO)
 import Utils (ErrorMessage, pShowStrict, packShow, safeHead)
@@ -77,6 +77,9 @@ schemaTypeToElmShallow j = case j of
     subType <- schemaTypeToElmShallow arrayItems
     pure (tparam "List" subType)
   JsonSchemaProcessedObject {objectTitle} -> Right (tvar (toPascal objectTitle))
+  JsonSchemaProcessedDict {dictProperties} -> do
+    subType <- schemaTypeToElmShallow dictProperties
+    Right (tparams "Dict" [tvar "String", subType])
   JsonSchemaProcessedUnion {unionItems} -> do
     subItems <- traverse schemaTypeToElmShallow unionItems
     pure (tparams ("Union" <> packShow (length unionItems)) subItems)
@@ -90,6 +93,7 @@ schemaTypeToElmName j = case j of
   JsonSchemaProcessedNumber {} -> Right "Float"
   JsonSchemaProcessedBoolean {} -> Right "Boolean"
   JsonSchemaProcessedArray {} -> Left "array not supported in Elm naming"
+  JsonSchemaProcessedDict {} -> Left "dict not supported in Elm naming"
   JsonSchemaProcessedObject {objectTitle} -> Right (toPascal objectTitle)
   JsonSchemaProcessedUnion {} -> Left "any of not supported in Elm naming"
   JsonSchemaProcessedEnum {enumTitle} -> Right (toPascal enumTitle)
@@ -208,7 +212,8 @@ schemaToElm moduleName j = do
           imports =
             [ import_ "Json.Decode" (Just "Decode") Nothing,
               import_ "Json.Encode" (Just "Encode") Nothing,
-              import_ "Json.Decode.Pipeline" (Just "DecodePipeline") Nothing
+              import_ "Json.Decode.Pipeline" (Just "DecodePipeline") Nothing,
+              import_ "Dict" Nothing (Just (importSome [select "Dict"]))
             ]
       pure
         ( module_
@@ -225,8 +230,11 @@ schemaTypeToElmDecoderExpression j = case j of
   JsonSchemaProcessedArray {arrayItems} -> do
     subDecoder <- schemaTypeToElmDecoderExpression arrayItems
     pure (app ["Decode.list", subDecoder])
-  JsonSchemaProcessedEnum {enumTitle} -> Right (var (buildDecoderName (toPascal enumTitle)))
-  JsonSchemaProcessedObject {objectTitle} -> Right (var (buildDecoderName (toPascal objectTitle)))
+  JsonSchemaProcessedEnum {enumTitle} -> pure (var (buildDecoderName (toPascal enumTitle)))
+  JsonSchemaProcessedObject {objectTitle} -> pure (var (buildDecoderName (toPascal objectTitle)))
+  JsonSchemaProcessedDict {dictProperties} -> do
+    subDecoder <- schemaTypeToElmDecoderExpression dictProperties
+    pure (app ["Decode.dict", subDecoder])
   JsonSchemaProcessedUnion {unionItems} -> do
     anyOfElements <- traverse schemaTypeToElmDecoderExpression unionItems
     pure (app (var ("decodeUnion" <> packShow (length unionItems)) : anyOfElements))
@@ -327,6 +335,16 @@ schemaTypeToEncoderShallow identifier j =
       -- Encode.list (encodeMyStuff list) list
       subEncoder <- schemaTypeToEncoderShallow Nothing arrayItems
       pure (app (["Encode.list", subEncoder] <> maybe [] pure identifier))
+    JsonSchemaProcessedDict {dictProperties} -> do
+      -- Omit identifier so we can do...
+      --
+      -- Encode.dict encodeMyStuff list
+      --
+      -- instead of...
+      --
+      -- Encode.dict (encodeMyStuff list) list
+      subEncoder <- schemaTypeToEncoderShallow Nothing dictProperties
+      pure (app (["Encode.dict", "identity", subEncoder] <> maybe [] pure identifier))
     JsonSchemaProcessedEnum {} -> do
       title' <- schemaTypeToElmName j
       pure (app ([var ("encode" <> title')] <> maybe [] pure identifier))
