@@ -11,6 +11,7 @@ module Elm
     float,
     under,
     var,
+    tuple,
     app,
     list,
     op,
@@ -124,6 +125,10 @@ app = Elm.Expression.App
 -- | A list literal
 list :: [Expr] -> Expr
 list = Elm.Expression.List
+
+-- | A tuple literal
+tuple :: [Expr] -> Expr
+tuple = Elm.Expression.Tuple
 
 -- | Apply an operator to two sub expressions
 --
