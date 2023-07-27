@@ -243,7 +243,7 @@ decVariable ::
   -- | The variable's value
   Expr ->
   Dec
-decVariable name type_ expr = Elm.Declaration.Dec name type_ [] expr
+decVariable name type_ = Elm.Declaration.Dec name type_ []
 
 -- | Declare a function
 decFunction ::
@@ -305,9 +305,9 @@ import_ ::
   -- | The name of the module to import
   Text ->
   -- | A possible alias to import the module as
-  (Maybe Text) ->
+  Maybe Text ->
   -- | A possible set of items to expose
-  (Maybe ImportExpr) ->
+  Maybe ImportExpr ->
   Import
 import_ = Elm.Import.Import
 

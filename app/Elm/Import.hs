@@ -55,7 +55,7 @@ instance Generate ImportType where
 
 instance Generate Import where
   generate (Import name as exposing) = do
-    let asDoc = fromMaybe empty $ fmap (\str -> "as" <+> text (unpack str)) $ as
+    let asDoc = maybe empty (\str -> "as" <+> text (unpack str)) as
     exposingDoc <-
       case exposing of
         Nothing ->

@@ -1,10 +1,10 @@
 cabal-version:      3.4
-name:               haskell-json-schema-to-elm
+name:               json-schema-to-elm
 version:            1.0.0
 -- synopsis:
 -- description:
 homepage:
-    https://gitlab.desy.de/cfel-sc-public/haskell-json-schema-to-elm
+    https://gitlab.desy.de/cfel-sc-public/json-schema-to-elm
 
 license:            GPL-3.0-or-later
 license-file:       LICENSE
@@ -19,7 +19,7 @@ extra-doc-files:    CHANGELOG.md
 common warnings
     ghc-options: -Wall
 
-executable haskell-json-schema-to-elm
+executable json-schema-to-elm
     import:           warnings
     main-is:          Main.hs
     other-modules:    JsonSchemaObjectRef

@@ -44,7 +44,7 @@ instance Generate Dec where
           "type"
             <+> text (unpack name)
             <+> hsep paramDocs
-            $+$ nest 4 ("=" <+> head instanceDocs $+$ (vcat . fmap ((<+>) "|") . tail $ instanceDocs))
+            $+$ nest 4 ("=" <+> head instanceDocs $+$ (vcat . fmap ("|" <+>) . tail $ instanceDocs))
       DecTypeAlias name params type_ -> do
         typeDoc <- generate type_
         let paramDocs = text . unpack <$> params

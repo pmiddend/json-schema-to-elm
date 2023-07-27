@@ -1,0 +1,13 @@
+default:
+  tags:
+    - nix
+
+build:
+  stage: build
+  script:
+    - nix build -L
+
+hlint:
+  stage: build
+  script:
+    - nix develop --command hlint app/
