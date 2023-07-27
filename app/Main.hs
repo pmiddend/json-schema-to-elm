@@ -306,7 +306,7 @@ schemaTypeToDecoderDeclaration j = case j of
             )
   JsonSchemaProcessedEnum {enumItems} -> do
     finalName <- schemaTypeToElmName j
-    let fnName = buildDecoderName "decode"
+    let fnName = buildDecoderName finalName
         fnType = tparam (qualifyDecoder "Decoder") (tvar finalName)
         fnParams = []
     pure
@@ -386,7 +386,7 @@ schemaTypeToEncoder j =
       title' <- schemaTypeToElmName j
       let inputVar = var "v"
           body = case_ inputVar ((\e -> (var (toPascal e), app [var (qualifyEncoder "string"), string e])) <$> enumItems)
-      pure (decFunction (buildEncoderName "encode") (tapp [tvar title', tvar (qualifyEncoder "Value")]) [inputVar] body)
+      pure (decFunction (buildEncoderName title') (tapp [tvar title', tvar (qualifyEncoder "Value")]) [inputVar] body)
     JsonSchemaProcessedObject {objectRequired, objectProperties} -> do
       title' <- schemaTypeToElmName j
       let inputVarName = "v"

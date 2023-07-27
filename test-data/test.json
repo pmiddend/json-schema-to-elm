@@ -6,42 +6,21 @@
       "title": "Myint",
       "type": "integer"
     },
-    "mystr": {
-      "title": "Mystr",
-      "type": "string"
-    },
     "myenum": {
       "$ref": "#/definitions/MyEnum"
-    },
-    "sub_member": {
-      "$ref": "#/definitions/TestClass2"
     }
   },
   "required": [
     "myint",
-    "myenum",
-    "sub_member"
+    "myenum"
   ],
   "definitions": {
     "MyEnum": {
       "title": "MyEnum",
       "description": "An enumeration.",
       "enum": [
-          "member1",
-	  "Member2"
-      ]
-    },
-    "TestClass2": {
-      "title": "TestClass2",
-      "type": "object",
-      "properties": {
-        "myfloat": {
-          "title": "Myfloat",
-          "type": "number"
-        }
-      },
-      "required": [
-        "myfloat"
+          "first",
+	  "second"
       ]
     }
   }
