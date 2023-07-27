@@ -9,7 +9,7 @@ module Elm.Import where
 
 import Control.Monad (Functor (fmap), Monad (return), mapM)
 import Data.Function (($), (.))
-import Data.Maybe (Maybe (Just, Nothing), fromMaybe)
+import Data.Maybe (Maybe (Just, Nothing), maybe)
 import Data.Semigroup ((<>))
 import Data.Text (Text, unpack)
 import Elm.Classes (Generate (generate))
