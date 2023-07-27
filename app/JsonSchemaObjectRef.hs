@@ -5,7 +5,7 @@
 module JsonSchemaObjectRef where
 
 import Control.Applicative ((<*>))
-import Data.Aeson (FromJSON (parseJSON), withObject, (.:?), (.:))
+import Data.Aeson (FromJSON (parseJSON), withObject, (.:?))
 import Data.Functor ((<$>))
 import qualified Data.Map as Map
 import Data.Maybe (Maybe)

@@ -18,7 +18,7 @@ floatTypeString :: Text
 floatTypeString = "Float"
 
 booleanTypeString :: Text
-booleanTypeString = "Boolean"
+booleanTypeString = "Bool"
 
 intTypeVar :: Type
 intTypeVar = tvar intTypeString

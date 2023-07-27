@@ -374,10 +374,10 @@ schemaTypeToEncoderShallow identifier j =
     JsonSchemaProcessedUnion {unionItems} -> do
       subElements <- traverse (schemaTypeToEncoderShallow Nothing) unionItems
       pure (app ([var (buildEncoderName ("Union" <> packShow (length unionItems)))] <> subElements <> maybe [] pure identifier))
-    JsonSchemaProcessedInt {} -> pure (app ([var (qualifyEncoder "Encode.int")] <> maybe [] pure identifier))
-    JsonSchemaProcessedString {} -> pure (app ([var (qualifyEncoder "Encode.string")] <> maybe [] pure identifier))
-    JsonSchemaProcessedNumber {} -> pure (app ([var (qualifyEncoder "Encode.float")] <> maybe [] pure identifier))
-    JsonSchemaProcessedBoolean {} -> pure (app ([var (qualifyEncoder "Encode.bool")] <> maybe [] pure identifier))
+    JsonSchemaProcessedInt {} -> pure (app ([var (qualifyEncoder "int")] <> maybe [] pure identifier))
+    JsonSchemaProcessedString {} -> pure (app ([var (qualifyEncoder "string")] <> maybe [] pure identifier))
+    JsonSchemaProcessedNumber {} -> pure (app ([var (qualifyEncoder "float")] <> maybe [] pure identifier))
+    JsonSchemaProcessedBoolean {} -> pure (app ([var (qualifyEncoder "bool")] <> maybe [] pure identifier))
 
 schemaTypeToEncoder :: JsonSchemaProcessed -> Either ErrorMessage Dec
 schemaTypeToEncoder j =
