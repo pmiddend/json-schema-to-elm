@@ -280,7 +280,7 @@ schemaTypeToDecoderDeclaration j = case j of
             Right
               ( app
                   [ var "DecodePipeline.required",
-                    string (toCamel propName),
+                    string propName,
                     if propName `elem` objectRequired then v else app [var (qualifyDecoder "nullable"), v]
                   ]
               )
