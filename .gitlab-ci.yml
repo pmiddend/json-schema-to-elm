@@ -2,12 +2,21 @@ default:
   tags:
     - nix
 
+stages:
+  - build
+  - test
+
 build:
   stage: build
   script:
     - nix build -L
 
 hlint:
-  stage: build
+  stage: test
   script:
     - nix develop --command hlint app/
+
+tests:
+  stage: test
+  script:
+    - nix develop --command cabal run json-schema-to-elm -- TestAPI < test-data/array-of-ints.json

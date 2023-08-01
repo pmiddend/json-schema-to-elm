@@ -1,0 +1,13 @@
+{
+    "title": "MainModel",
+    "type": "object",
+    "properties": {
+	"history_timestamps": {
+            "title": "History Timestamps",
+            "type": "array",
+            "items": {
+		"type": "number"
+            }
+        }
+    }
+}

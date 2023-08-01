@@ -28,24 +28,20 @@ data JsonSchemaProcessed
       { dictProperties :: JsonSchemaProcessed
       }
   | JsonSchemaProcessedUnion {unionTitle :: Text, unionItems :: [JsonSchemaProcessed]}
-  | JsonSchemaProcessedInt
-  | JsonSchemaProcessedString {stringTitle :: Text}
-  | JsonSchemaProcessedNumber {numberTitle :: Text}
-  | JsonSchemaProcessedBoolean {booleanTitle :: Text}
+  | JsonSchemaProcessedInt {intTitle :: Maybe Text}
+  | JsonSchemaProcessedString {stringTitle :: Maybe Text}
+  | JsonSchemaProcessedNumber {numberTitle :: Maybe Text}
+  | JsonSchemaProcessedBoolean {booleanTitle :: Maybe Text}
   deriving (Show)
 
+-- Here, we convert between the "raw" JSON representation (with references resolved) to our "processed" one that's
+-- much easier to digest and turn into Elm code
 fromObject :: JsonSchemaObject -> Either ErrorMessage JsonSchemaProcessed
 fromObject j = case type_ j of
-  Just SchemaTypeInteger -> pure JsonSchemaProcessedInt
-  Just SchemaTypeString -> case title j of
-    Nothing -> makeError ("string without a title: " <> pShowStrict j)
-    Just title' -> pure (JsonSchemaProcessedString title')
-  Just SchemaTypeNumber -> case title j of
-    Nothing -> makeError ("number without a title: " <> pShowStrict j)
-    Just title' -> pure (JsonSchemaProcessedNumber title')
-  Just SchemaTypeBoolean -> case title j of
-    Nothing -> makeError ("boolean without a title: " <> pShowStrict j)
-    Just title' -> pure (JsonSchemaProcessedBoolean title')
+  Just SchemaTypeInteger -> pure (JsonSchemaProcessedInt (title j))
+  Just SchemaTypeString -> pure (JsonSchemaProcessedString (title j))
+  Just SchemaTypeNumber -> pure (JsonSchemaProcessedNumber (title j))
+  Just SchemaTypeBoolean -> pure (JsonSchemaProcessedBoolean (title j))
   Just SchemaTypeObject ->
     case additionalProperties j of
       Just additionalProps' -> do
