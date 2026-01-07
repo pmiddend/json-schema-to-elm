@@ -10,7 +10,7 @@ import Data.Aeson (eitherDecodeStrict)
 import Data.Bool (Bool (..))
 import Data.ByteString (getContents)
 import Data.Either (Either (Left, Right))
-import Data.Foldable (Foldable (elem, foldr))
+import Data.Foldable (foldr)
 import Data.Function ((.))
 import Data.Functor ((<$>))
 import Data.Int (Int)
@@ -60,7 +60,7 @@ import JsonSchemaObject
     fromRef,
   )
 import JsonSchemaObjectRef (JsonSchemaObjectRef)
-import JsonSchemaProcessed (JsonSchemaProcessed (JsonSchemaProcessedArray, JsonSchemaProcessedBoolean, JsonSchemaProcessedDict, JsonSchemaProcessedEnum, JsonSchemaProcessedInt, JsonSchemaProcessedNull, JsonSchemaProcessedNumber, JsonSchemaProcessedObject, JsonSchemaProcessedOptional, JsonSchemaProcessedString, JsonSchemaProcessedUnion, arrayItems, dictProperties, enumItems, enumTitle, objectDefinitions, objectProperties, objectRequired, objectTitle, unionItems), fromObject, optionalItem)
+import JsonSchemaProcessed (JsonSchemaProcessed (JsonSchemaProcessedArray, JsonSchemaProcessedBoolean, JsonSchemaProcessedDict, JsonSchemaProcessedEnum, JsonSchemaProcessedInt, JsonSchemaProcessedNull, JsonSchemaProcessedNumber, JsonSchemaProcessedObject, JsonSchemaProcessedOptional, JsonSchemaProcessedString, JsonSchemaProcessedUnion, arrayItems, dictProperties, enumItems, enumTitle, objectDefinitions, objectProperties, objectTitle, unionItems), fromObject, optionalItem)
 import System.Environment (getArgs)
 import System.IO (IO)
 import Utils (ErrorMessage, makeError, pShowStrict, packShow, retrieveError, safeHead)
@@ -126,15 +126,17 @@ schemaTypeToElmName j = case j of
 -- | Declaration for the actual Elm data type for a JSON schema
 schemaObjectToDeclaration :: JsonSchemaProcessed -> Either ErrorMessage Dec
 schemaObjectToDeclaration j = case j of
-  JsonSchemaProcessedObject {objectTitle, objectProperties, objectRequired} ->
+  JsonSchemaProcessedObject {objectTitle, objectProperties} ->
     let propToRecordField :: Text -> JsonSchemaProcessed -> Either ErrorMessage (Text, Type)
         propToRecordField propName obj = do
           v <- schemaTypeToElmType obj
-          pure
-            ( if propName `elem` objectRequired
-                then (toCamel propName, v)
-                else (toCamel propName, maybeTypeVar v)
-            )
+          -- We used to use the required list to assess if something's a maybe, but nowadays we have "anyOf T None" in the types, so we don't need it?
+          -- pure
+          --   ( if propName `elem` objectRequired
+          --       then (toCamel propName, v)
+          --       else (toCamel propName, maybeTypeVar v)
+          --   )
+          pure (toCamel propName, v)
      in do
           recordResults <-
             foldM
@@ -279,7 +281,7 @@ schemaTypeToElmDecoderExpression j = case j of
 -- | Given a schema, create a declaration for a decoder function for this schema
 schemaTypeToDecoderDeclaration :: JsonSchemaProcessed -> Either ErrorMessage Dec
 schemaTypeToDecoderDeclaration j = case j of
-  JsonSchemaProcessedObject {objectTitle, objectProperties, objectRequired} ->
+  JsonSchemaProcessedObject {objectTitle, objectProperties} ->
     let title'' = toPascal objectTitle
         fnName :: Text
         fnName = buildDecoderName title''
@@ -294,7 +296,13 @@ schemaTypeToDecoderDeclaration j = case j of
               ( app
                   [ var "DecodePipeline.required",
                     string propName,
-                    if propName `elem` objectRequired then v else app [var (qualifyDecoder "nullable"), v]
+                    -- We used to use the "required" array to
+                    -- determine if something is Maybe, but nowadays
+                    -- we have anyOf T None in our types so we don't
+                    -- need it anymore?
+                    --
+                    -- if propName `elem` objectRequired then v else app [var (qualifyDecoder "nullable"), v]
+                    v
                   ]
               )
      in do
@@ -420,19 +428,23 @@ schemaTypeToEncoder j =
       let inputVar = var "v"
           body = case_ inputVar (NE.toList ((\e -> (var (toPascal e), app [var (qualifyEncoder "string"), string e])) <$> enumItems))
       pure (decFunction (buildEncoderName title') (tapp [tvar title', tvar (qualifyEncoder "Value")]) [inputVar] body)
-    JsonSchemaProcessedObject {objectRequired, objectProperties} -> do
+    JsonSchemaProcessedObject {objectProperties} -> do
       title' <- schemaTypeToElmName j
       let inputVarName = "v"
           transducer prevList (propName, prop) =
             let subVarName = var (inputVarName <> "." <> toCamel propName)
-             in if propName `elem` objectRequired
-                  then do
-                    shallowEncoder <- schemaTypeToEncoderShallow (Just subVarName) prop
-                    pure (tuple [string propName, shallowEncoder] : prevList)
-                  else do
-                    shallowEncoder <- schemaTypeToEncoderShallow Nothing prop
-                    let realEncoder = app [var (buildEncoderName "Maybe"), shallowEncoder, subVarName]
-                    pure (tuple [string propName, realEncoder] : prevList)
+             in -- We used to rely on the required array to guess if we need Maybe or not, but nowadays we have anyOf None T in the types so we don't need it anymore?
+                do
+                  shallowEncoder <- schemaTypeToEncoderShallow (Just subVarName) prop
+                  pure (tuple [string propName, shallowEncoder] : prevList)
+      -- in if propName `elem` objectRequired
+      --      then do
+      --        shallowEncoder <- schemaTypeToEncoderShallow (Just subVarName) prop
+      --        pure (tuple [string propName, shallowEncoder] : prevList)
+      --      else do
+      --        shallowEncoder <- schemaTypeToEncoderShallow Nothing prop
+      --        let realEncoder = app [var (buildEncoderName "Maybe"), shallowEncoder, subVarName]
+      --        pure (tuple [string propName, realEncoder] : prevList)
       -- The value (say "v") might be "Maybe a", so "Encode.int v" doesn't work.
       -- Instead, we have to do "encodeMaybe Encode.int v"
       objectArgs <-
