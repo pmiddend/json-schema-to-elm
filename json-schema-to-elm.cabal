@@ -1,15 +1,15 @@
 cabal-version:      3.4
 name:               json-schema-to-elm
 version:            1.0.0
--- synopsis:
+synopsis:           Convert JSON Schema to valid Elm code
 -- description:
 homepage:
     https://gitlab.desy.de/cfel-sc-public/json-schema-to-elm
 
 license:            GPL-3.0-or-later
 license-file:       LICENSE
-author:             CFEL-SC
-maintainer:         sc@cfel.de
+author:             Philipp Middendorf
+maintainer:         philipp.middendorf@desy.de
 -- copyright:
 category:           Text
 build-type:         Simple
