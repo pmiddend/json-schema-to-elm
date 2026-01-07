@@ -60,7 +60,7 @@ import JsonSchemaObject
     fromRef,
   )
 import JsonSchemaObjectRef (JsonSchemaObjectRef)
-import JsonSchemaProcessed (JsonSchemaProcessed (JsonSchemaProcessedArray, JsonSchemaProcessedBoolean, JsonSchemaProcessedDict, JsonSchemaProcessedEnum, JsonSchemaProcessedInt, JsonSchemaProcessedNumber, JsonSchemaProcessedObject, JsonSchemaProcessedString, JsonSchemaProcessedUnion, arrayItems, dictProperties, enumItems, enumTitle, objectDefinitions, objectProperties, objectRequired, objectTitle, unionItems), fromObject)
+import JsonSchemaProcessed (JsonSchemaProcessed (JsonSchemaProcessedArray, JsonSchemaProcessedBoolean, JsonSchemaProcessedDict, JsonSchemaProcessedEnum, JsonSchemaProcessedInt, JsonSchemaProcessedNull, JsonSchemaProcessedNumber, JsonSchemaProcessedObject, JsonSchemaProcessedOptional, JsonSchemaProcessedString, JsonSchemaProcessedUnion, arrayItems, dictProperties, enumItems, enumTitle, objectDefinitions, objectProperties, objectRequired, objectTitle, unionItems), fromObject, optionalItem)
 import System.Environment (getArgs)
 import System.IO (IO)
 import Utils (ErrorMessage, makeError, pShowStrict, packShow, retrieveError, safeHead)
@@ -88,6 +88,8 @@ qualifyDecoder = ("Decode." <>)
 schemaTypeToElmType :: JsonSchemaProcessed -> Either ErrorMessage Type
 schemaTypeToElmType j = case j of
   JsonSchemaProcessedInt {} -> Right intTypeVar
+  -- shouldn't happen
+  JsonSchemaProcessedNull -> Right intTypeVar
   JsonSchemaProcessedString {} -> Right stringTypeVar
   JsonSchemaProcessedNumber {} -> Right floatTypeVar
   JsonSchemaProcessedBoolean {} -> Right booleanTypeVar
@@ -95,6 +97,9 @@ schemaTypeToElmType j = case j of
     subType <- schemaTypeToElmType arrayItems
     pure (listTypeVar subType)
   JsonSchemaProcessedObject {objectTitle} -> Right (tvar (toPascal objectTitle))
+  JsonSchemaProcessedOptional {optionalItem} -> do
+    subType <- schemaTypeToElmType optionalItem
+    Right (maybeTypeVar subType)
   JsonSchemaProcessedDict {dictProperties} -> do
     subType <- schemaTypeToElmType dictProperties
     Right (dictTypeVar stringTypeVar subType)
@@ -111,6 +116,8 @@ schemaTypeToElmName j = case j of
   JsonSchemaProcessedNumber {} -> Right floatTypeString
   JsonSchemaProcessedBoolean {} -> Right booleanTypeString
   JsonSchemaProcessedArray {} -> makeError "array not supported in Elm naming"
+  JsonSchemaProcessedOptional {} -> makeError "optional object not supported in Elm naming"
+  JsonSchemaProcessedNull -> makeError "null not supported in Elm naming"
   JsonSchemaProcessedDict {} -> makeError "dict not supported in Elm naming"
   JsonSchemaProcessedObject {objectTitle} -> Right (toPascal objectTitle)
   JsonSchemaProcessedUnion {} -> makeError "any of not supported in Elm naming"
@@ -214,7 +221,7 @@ maybeEncoder =
     [var "decoder", var "maybeValue"]
     (case_ (var "maybeValue") [(nothingVar, var (qualifyEncoder "null")), (justVar (var "x"), app [var "decoder", var "x"])])
 
--- | The root function: generate an Elm file from a schema
+-- | The (non-recursive) root function: generate an Elm file from a schema
 schemaToElm :: Text -> JsonSchemaObject -> Either ErrorMessage Module
 schemaToElm moduleName j = do
   processed <- fromObject j
@@ -242,7 +249,7 @@ schemaToElm moduleName j = do
             moduleName
             importEvery
             imports
-            (rootDeclaration : constantStringDecoder : rootDecoder : rootEncoder : maybeEncoder : (definitions' <> unions <> definitionsDecoders <> definitionsEncoders))
+            (rootDeclaration : constantStringDecoder : optionalEncoder : rootDecoder : rootEncoder : maybeEncoder : (definitions' <> unions <> definitionsDecoders <> definitionsEncoders))
         )
     t -> makeError ("root element is not an object: " <> pShowStrict t)
 
@@ -254,6 +261,9 @@ schemaTypeToElmDecoderExpression j = case j of
     pure (app [var (qualifyDecoder "list"), subDecoder])
   JsonSchemaProcessedEnum {enumTitle} -> pure (var (buildDecoderName (toPascal enumTitle)))
   JsonSchemaProcessedObject {objectTitle} -> pure (var (buildDecoderName (toPascal objectTitle)))
+  JsonSchemaProcessedOptional {optionalItem} -> do
+    subDecoder <- schemaTypeToElmDecoderExpression optionalItem
+    pure (app [var (qualifyDecoder "nullable"), subDecoder])
   JsonSchemaProcessedDict {dictProperties} -> do
     subDecoder <- schemaTypeToElmDecoderExpression dictProperties
     pure (app [var (qualifyDecoder "dict"), subDecoder])
@@ -261,6 +271,7 @@ schemaTypeToElmDecoderExpression j = case j of
     anyOfElements <- traverse schemaTypeToElmDecoderExpression unionItems
     pure (app (var (buildDecoderName ("Union" <> packShow (length unionItems))) : anyOfElements))
   JsonSchemaProcessedInt {} -> pure (var (qualifyDecoder "int"))
+  JsonSchemaProcessedNull -> pure (var (qualifyDecoder "int"))
   JsonSchemaProcessedString {} -> pure (var (qualifyDecoder "string"))
   JsonSchemaProcessedNumber {} -> pure (var (qualifyDecoder "float"))
   JsonSchemaProcessedBoolean {} -> pure (var (qualifyDecoder "bool"))
@@ -344,6 +355,22 @@ constantStringDecoder =
         ]
     )
 
+optionalEncoderName :: Text
+optionalEncoderName = "encodeOptional"
+
+optionalEncoder :: Dec
+optionalEncoder =
+  decFunction
+    optionalEncoderName
+    (tapp [tapp [tvar "a", tvar (qualifyEncoder "Value")], tparam "Maybe" (tvar "a"), tvar (qualifyEncoder "Value")])
+    [var "subEncoder", var "v"]
+    ( case_
+        (var "v")
+        [ (var "Nothing", var (qualifyEncoder "null")),
+          (app [var "Just", var "x"], app [var "subEncoder", var "x"])
+        ]
+    )
+
 schemaTypeToEncoderShallow :: Maybe Expr -> JsonSchemaProcessed -> Either ErrorMessage Expr
 schemaTypeToEncoderShallow identifier j =
   case j of
@@ -373,10 +400,14 @@ schemaTypeToEncoderShallow identifier j =
     JsonSchemaProcessedObject {} -> do
       title' <- schemaTypeToElmName j
       pure (app ([var (buildEncoderName title')] <> maybe [] pure identifier))
+    JsonSchemaProcessedOptional {optionalItem} -> do
+      subEncoder <- schemaTypeToEncoderShallow Nothing optionalItem
+      pure (app ([var optionalEncoderName, subEncoder] <> maybe [] pure identifier))
     JsonSchemaProcessedUnion {unionItems} -> do
       subElements <- traverse (schemaTypeToEncoderShallow Nothing) unionItems
       pure (app ([var (buildEncoderName ("Union" <> packShow (length unionItems)))] <> subElements <> maybe [] pure identifier))
     JsonSchemaProcessedInt {} -> pure (app ([var (qualifyEncoder "int")] <> maybe [] pure identifier))
+    JsonSchemaProcessedNull -> pure (app ([var (qualifyEncoder "int")] <> maybe [] pure identifier))
     JsonSchemaProcessedString {} -> pure (app ([var (qualifyEncoder "string")] <> maybe [] pure identifier))
     JsonSchemaProcessedNumber {} -> pure (app ([var (qualifyEncoder "float")] <> maybe [] pure identifier))
     JsonSchemaProcessedBoolean {} -> pure (app ([var (qualifyEncoder "bool")] <> maybe [] pure identifier))

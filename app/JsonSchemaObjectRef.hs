@@ -1,14 +1,16 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module JsonSchemaObjectRef where
 
-import Control.Applicative ((<*>))
+import Control.Applicative (Applicative (pure), (<*>))
+import Control.Monad ((>>=))
 import Data.Aeson (FromJSON (parseJSON), withObject, (.:?))
 import Data.Functor ((<$>))
 import qualified Data.Map as Map
-import Data.Maybe (Maybe)
+import Data.Maybe (Maybe (Just, Nothing))
 import Data.Text (Text)
 import GHC.Generics (Generic)
 import JsonSchemaTypeEnum
@@ -44,5 +46,8 @@ instance FromJSON JsonSchemaObjectRef where
       <*> v .:? "required"
       <*> v .:? "items"
       <*> v .:? "enum"
-      <*> v .:? "definitions"
+      <*> ( v .:? "definitions" >>= \case
+              Nothing -> v .:? "$defs"
+              Just d -> pure d
+          )
       <*> v .:? "anyOf"

@@ -12,6 +12,7 @@ data SchemaTypeEnum
   | SchemaTypeNumber
   | SchemaTypeBoolean
   | SchemaTypeArray
+  | SchemaTypeNull
   deriving (Show)
 
 instance FromJSON SchemaTypeEnum where
@@ -33,4 +34,7 @@ instance FromJSON SchemaTypeEnum where
                       else
                         if v == "string"
                           then pure SchemaTypeString
-                          else fail $ "unknown schema type " <> unpack v
+                          else
+                            if v == "null"
+                              then pure SchemaTypeNull
+                              else fail $ "unknown schema type " <> unpack v

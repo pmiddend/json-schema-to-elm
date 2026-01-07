@@ -14,13 +14,13 @@ import qualified Data.Map as Map
 import Data.Maybe (Maybe (Just, Nothing), fromMaybe)
 import Data.Monoid (Monoid (..))
 import Data.Semigroup ((<>))
-import Data.Text (Text, drop, isPrefixOf, length)
+import Data.Text (Text, drop, isPrefixOf, length, pack)
 import Data.Traversable (Traversable (traverse))
 import GHC.Generics (Generic)
 import qualified JsonSchemaObjectRef as Ref
 import JsonSchemaTypeEnum
 import Text.Show (Show)
-import Prelude ()
+import Prelude (show)
 
 type ObjectMap = Map.Map Text JsonSchemaObject
 
@@ -40,8 +40,11 @@ data JsonSchemaObject = JsonSchemaObject
 
 instance FromJSON JsonSchemaObject
 
-expectedRefPrefix :: Text
-expectedRefPrefix = "#/definitions/"
+expectedOldRefPrefix :: Text
+expectedOldRefPrefix = "#/definitions/"
+
+expectedNewRefPrefix :: Text
+expectedNewRefPrefix = "#/$defs/"
 
 resolveMap :: (Foldable t) => ObjectMap -> t (Text, Ref.JsonSchemaObjectRef) -> Either Text ObjectMap
 resolveMap rootDefs =
@@ -54,9 +57,14 @@ resolveSingleDefinition rootDefs root =
   case Ref.ref root of
     -- The currently looked-at node is a ref itself (shouldn't apply to the root node)
     Just ref' ->
-      if not (expectedRefPrefix `isPrefixOf` ref')
-        then Left ("reference doesn't start with \"" <> expectedRefPrefix <> "\": " <> ref')
-        else case Map.lookup (drop (length expectedRefPrefix) ref') rootDefs of
+      if not (expectedOldRefPrefix `isPrefixOf` ref')
+        then
+          if not (expectedNewRefPrefix `isPrefixOf` ref')
+            then Left ("reference doesn't start with \"" <> expectedOldRefPrefix <> "\" or \"" <> expectedNewRefPrefix <> "\": " <> ref')
+            else case Map.lookup (drop (length expectedNewRefPrefix) ref') rootDefs of
+              Nothing -> Left ("looking up " <> ref' <> ": not found in " <> pack (show rootDefs))
+              Just result -> Right result
+        else case Map.lookup (drop (length expectedOldRefPrefix) ref') rootDefs of
           Nothing -> Left ("looking up " <> ref' <> ": not found")
           Just result -> Right result
     -- The currently looked-at node is not a ref
@@ -116,9 +124,14 @@ resolveRootDefinitions rootDefs =
       resolveRootDefinition :: Ref.JsonSchemaObjectRef -> Either Text JsonSchemaObject
       resolveRootDefinition root = case Ref.ref root of
         Just ref' ->
-          if not (expectedRefPrefix `isPrefixOf` ref')
-            then Left ("reference doesn't start with \"" <> expectedRefPrefix <> "\": " <> ref')
-            else case Map.lookup (drop (length expectedRefPrefix) ref') rootDefs of
+          if not (expectedOldRefPrefix `isPrefixOf` ref')
+            then
+              if not (expectedNewRefPrefix `isPrefixOf` ref')
+                then Left ("reference doesn't start with \"" <> expectedOldRefPrefix <> "\" or \"" <> expectedNewRefPrefix <> "\": " <> ref')
+                else case Map.lookup (drop (length expectedNewRefPrefix) ref') rootDefs of
+                  Nothing -> Left ("looking up " <> ref' <> ": not found in " <> pack (show rootDefs))
+                  Just result -> resolveRootDefinition result
+            else case Map.lookup (drop (length expectedOldRefPrefix) ref') rootDefs of
               Nothing -> Left ("looking up " <> ref' <> ": not found")
               Just result -> resolveRootDefinition result
         Nothing -> do
