@@ -64,6 +64,7 @@ import Data.Bool (Bool)
 import Data.Eq ((==))
 import Data.Function (($), (.))
 import Data.Int (Int)
+import qualified Data.List.NonEmpty as NE
 import Data.Maybe (Maybe (Just, Nothing))
 import Data.Text (Text, pack)
 import Elm.Classes (Generate (generate))
@@ -265,7 +266,7 @@ decType ::
   -- | The type's type paramaters
   [Text] ->
   -- | The type's constructors
-  [(Text, [Type])] ->
+  NE.NonEmpty (Text, [Type]) ->
   Dec
 decType = Elm.Declaration.DecType
 

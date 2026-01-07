@@ -1,4 +1,5 @@
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Main where
@@ -14,6 +15,7 @@ import Data.Function ((.))
 import Data.Functor ((<$>))
 import Data.Int (Int)
 import Data.List (length, reverse, take, zipWith)
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
 import Data.Maybe (Maybe (..), maybe)
 import Data.Monoid (Monoid (mempty))
@@ -148,7 +150,7 @@ unionDeclaration n =
   decType
     ("Union" <> packShow n)
     (singleton <$> take n ['a' .. 'z'])
-    (zipWith (\c i -> ("Union" <> packShow n <> "Member" <> packShow i, [tvar (singleton c)])) ['a' .. 'z'] [1 .. n])
+    (NE.zipWith (\c i -> ("Union" <> packShow n <> "Member" <> packShow i, [tvar (singleton c)])) ['a' .. 'z'] [1 .. n])
 
 unionDecoder :: Int -> Dec
 unionDecoder n =
@@ -315,7 +317,7 @@ schemaTypeToDecoderDeclaration j = case j of
           fnType
           fnParams
           ( app
-              [var (qualifyDecoder "oneOf"), list ((\e -> app [var constantStringDecoderName, string e, var (toPascal e)]) <$> enumItems)]
+              [var (qualifyDecoder "oneOf"), list (NE.toList ((\e -> app [var constantStringDecoderName, string e, var (toPascal e)]) <$> enumItems))]
           )
       )
   _ -> makeError ("cannot build decoder for " <> pShowStrict j)
@@ -385,7 +387,7 @@ schemaTypeToEncoder j =
     JsonSchemaProcessedEnum {enumItems} -> do
       title' <- schemaTypeToElmName j
       let inputVar = var "v"
-          body = case_ inputVar ((\e -> (var (toPascal e), app [var (qualifyEncoder "string"), string e])) <$> enumItems)
+          body = case_ inputVar (NE.toList ((\e -> (var (toPascal e), app [var (qualifyEncoder "string"), string e])) <$> enumItems))
       pure (decFunction (buildEncoderName title') (tapp [tvar title', tvar (qualifyEncoder "Value")]) [inputVar] body)
     JsonSchemaProcessedObject {objectRequired, objectProperties} -> do
       title' <- schemaTypeToElmName j

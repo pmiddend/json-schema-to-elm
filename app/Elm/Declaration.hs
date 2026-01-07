@@ -8,8 +8,8 @@ module Elm.Declaration where
 
 import Control.Monad (Functor (fmap), Monad (return), mapM)
 import Data.Function (($), (.))
-import Data.Functor ((<$>))
-import Data.List (head, tail, unzip, zip)
+import Data.Functor (unzip, (<$>))
+import qualified Data.List.NonEmpty as NE
 import Data.Text (Text, unpack)
 import Elm.Classes (Generate (generate))
 import Elm.Expression (Expr)
@@ -22,7 +22,7 @@ data Dec
   = -- | Declare a function
     Dec Text TypeDec [Expr] Expr
   | -- | Declare a type
-    DecType Text [Text] [(Text, [TypeDec])]
+    DecType Text [Text] (NE.NonEmpty (Text, [TypeDec]))
   | -- | Declare a type alias
     DecTypeAlias Text [Text] TypeDec
 
@@ -38,13 +38,13 @@ instance Generate Dec where
         let (keys, values) = unzip instances
         let keyDocs = text . unpack <$> keys
         valueDocs <- mapM (mapM generate) values
-        let instanceDocs = (\(key, values') -> key <+> hsep values') <$> zip keyDocs valueDocs
+        let instanceDocs = (\(key, values') -> key <+> hsep values') <$> NE.zip keyDocs valueDocs
         let paramDocs = text . unpack <$> params
         return $
           "type"
             <+> text (unpack name)
             <+> hsep paramDocs
-            $+$ nest 4 ("=" <+> head instanceDocs $+$ (vcat . fmap ("|" <+>) . tail $ instanceDocs))
+            $+$ nest 4 ("=" <+> NE.head instanceDocs $+$ (vcat . fmap ("|" <+>) . NE.tail $ instanceDocs))
       DecTypeAlias name params type_ -> do
         typeDoc <- generate type_
         let paramDocs = text . unpack <$> params

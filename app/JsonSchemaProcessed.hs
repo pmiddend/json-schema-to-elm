@@ -3,7 +3,9 @@
 module JsonSchemaProcessed where
 
 import Control.Applicative (Applicative (pure))
+import Control.Monad ((>>=))
 import Data.Either (Either)
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
 import Data.Maybe (Maybe (Just, Nothing), fromMaybe)
 import Data.Semigroup ((<>))
@@ -17,7 +19,7 @@ import Prelude ()
 
 data JsonSchemaProcessed
   = JsonSchemaProcessedArray {arrayItems :: JsonSchemaProcessed}
-  | JsonSchemaProcessedEnum {enumTitle :: Text, enumItems :: [Text]}
+  | JsonSchemaProcessedEnum {enumTitle :: Text, enumItems :: NE.NonEmpty Text}
   | JsonSchemaProcessedObject
       { objectTitle :: Text,
         objectProperties :: Map.Map Text JsonSchemaProcessed,
@@ -62,7 +64,7 @@ fromObject j = case type_ j of
       newItems <- fromObject items'
       pure (JsonSchemaProcessedArray newItems)
   Nothing ->
-    case enum j of
+    case enum j >>= NE.nonEmpty of
       Just enum' ->
         case title j of
           Just title' -> pure (JsonSchemaProcessedEnum title' enum')

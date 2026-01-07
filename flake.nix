@@ -1,7 +1,7 @@
 {
   # inspired by: https://serokell.io/blog/practical-nix-flakes#packaging-existing-applications
   description = "JSON Schema to Elm converter";
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs?rev=5df4d78d54f7a34e9ea1f84a22b4fd9baebc68d0";
+  inputs.nixpkgs.url = "nixpkgs/nixos-25.11";
   outputs = { self, nixpkgs }:
     let
       supportedSystems = [ "x86_64-linux" ];
@@ -29,8 +29,6 @@
             haskellPackages.haskell-language-server # you must build it with your ghc to work
             haskellPackages.ormolu
             cabal-install
-            haskellPackages.hlint
-            haskellPackages.apply-refact
           ];
           # Change the prompt to show that you are in a devShell
           shellHook = "export PS1='\\e[1;34mdev > \\e[0m'";
